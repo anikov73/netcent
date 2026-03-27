@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Categories — Finance Manager{% endblock %}
+{% block page_title %}Categories{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-primary btn-sm" onclick="openModal('add-cat-modal')">+ Add Category</button>
+{% endblock %}
+
+{% block content %}
+
+<!-- Add Category Modal -->
+<div class="modal-overlay" id="add-cat-modal">
+    <div class="modal">
+        <div class="modal-title">Add Category</div>
+        <form method="post" action="/categories/create">
+            <div class="form-group">
+                <label class="form-label">Name *</label>
+                <input type="text" name="name" class="form-control" required>
+            </div>
+            <div class="grid grid-2">
+                <div class="form-group">
+                    <label class="form-label">Icon (emoji)</label>
+                    <input type="text" name="icon" class="form-control" placeholder="🏠">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Color</label>
+                    <input type="color" name="color" class="form-control" value="#3b82f6">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Parent Category</label>
+                <select name="parent_id" class="form-control">
+                    <option value="">— None —</option>
+                    {% for cat in parent_cats %}
+                    <option value="{{ cat.id }}">{{ cat.icon or '' }} {{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px">
+                    <input type="checkbox" name="is_income" value="1"> Income category
+                </label>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary">Create</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('add-cat-modal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Merge Modal -->
+<div class="modal-overlay" id="merge-modal">
+    <div class="modal">
+        <div class="modal-title">Merge Categories</div>
+        <form method="post" action="/categories/merge">
+            <div class="form-group">
+                <label class="form-label">Source (will be deleted)</label>
+                <select name="source_id" class="form-control">
+                    {% for item in categories %}
+                    <option value="{{ item.cat.id }}">{{ item.cat.icon or '' }} {{ item.cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Merge into</label>
+                <select name="target_id" class="form-control">
+                    {% for item in categories %}
+                    <option value="{{ item.cat.id }}">{{ item.cat.icon or '' }} {{ item.cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-danger">Merge</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('merge-modal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="flex justify-between mb-4">
+    <button class="btn btn-secondary btn-sm" onclick="openModal('merge-modal')">🔀 Merge Categories</button>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Color</th>
+                    <th>Type</th>
+                    <th>Transactions</th>
+                    <th>Sort</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in categories %}
+                <tr>
+                    <td>
+                        <span style="font-size:18px">{{ item.cat.icon or '❓' }}</span>
+                        <strong style="margin-left:8px">{{ item.cat.name }}</strong>
+                        {% if item.cat.parent_id %}
+                        <span class="text-muted text-sm">(subcategory)</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="cat-dot" style="background:{{ item.cat.color or '#9E9E9E' }};width:16px;height:16px"></span>
+                        {{ item.cat.color or '' }}
+                    </td>
+                    <td>{{ '💰 Income' if item.cat.is_income else '💸 Expense' }}</td>
+                    <td>{{ item.tx_count }}</td>
+                    <td>{{ item.cat.sort_order }}</td>
+                    <td>
+                        <div class="flex gap-2">
+                            <button class="btn btn-secondary btn-sm" onclick="openEditModal({{ item.cat.id }}, '{{ item.cat.name|replace("'", "\\'") }}', '{{ item.cat.icon or '' }}', '{{ item.cat.color or '#9E9E9E' }}', {{ item.cat.parent_id or 'null' }}, {{ 'true' if item.cat.is_income else 'false' }}, {{ item.cat.sort_order }})">✏️</button>
+                            {% if item.cat.name != 'Uncategorized' %}
+                            <form method="post" action="/categories/{{ item.cat.id }}/delete" style="display:inline">
+                                <button type="submit" class="btn btn-danger btn-sm"
+                                        onclick="return confirm('Delete {{ item.cat.name }}? Transactions will be moved to Uncategorized.')">🗑️</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="edit-cat-modal">
+    <div class="modal">
+        <div class="modal-title">Edit Category</div>
+        <form method="post" id="edit-cat-form" action="/categories/0/edit">
+            <div class="form-group">
+                <label class="form-label">Name *</label>
+                <input type="text" name="name" id="edit-name" class="form-control" required>
+            </div>
+            <div class="grid grid-2">
+                <div class="form-group">
+                    <label class="form-label">Icon (emoji)</label>
+                    <input type="text" name="icon" id="edit-icon" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Color</label>
+                    <input type="color" name="color" id="edit-color" class="form-control">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Sort Order</label>
+                <input type="number" name="sort_order" id="edit-sort" class="form-control" value="0">
+            </div>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px">
+                    <input type="checkbox" name="is_income" id="edit-income" value="1"> Income category
+                </label>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('edit-cat-modal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEditModal(id, name, icon, color, parentId, isIncome, sortOrder) {
+    document.getElementById('edit-cat-form').action = '/categories/' + id + '/edit';
+    document.getElementById('edit-name').value = name;
+    document.getElementById('edit-icon').value = icon;
+    document.getElementById('edit-color').value = color;
+    document.getElementById('edit-sort').value = sortOrder;
+    document.getElementById('edit-income').checked = isIncome;
+    openModal('edit-cat-modal');
+}
+</script>
+{% endblock %}

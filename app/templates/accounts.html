@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Accounts — Finance Manager{% endblock %}
+{% block page_title %}Accounts{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-primary btn-sm" onclick="openModal('create-account-modal')">+ New Account</button>
+{% endblock %}
+
+{% block content %}
+
+<div class="card">
+    {% if accounts %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Currency</th>
+                    <th>Transactions</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for acc in accounts %}
+                <tr>
+                    <td style="font-weight:500">{{ acc.name }}</td>
+                    <td class="text-sm text-muted">{{ acc.description or '—' }}</td>
+                    <td class="text-sm">{{ acc.currency }}</td>
+                    <td class="text-sm text-muted">{{ tx_counts.get(acc.id, 0) }}</td>
+                    <td>
+                        <span class="badge badge-category"
+                              style="--cat-color:{% if acc.is_active %}#22c55e{% else %}#94a3b8{% endif %}">
+                            {{ 'Active' if acc.is_active else 'Inactive' }}
+                        </span>
+                    </td>
+                    <td style="white-space:nowrap">
+                        <button class="btn btn-secondary btn-sm"
+                                onclick="openEditModal({{ acc.id }}, {{ acc.name|tojson }}, {{ (acc.description or '')|tojson }}, {{ acc.currency|tojson }}, {{ acc.is_active|tojson }})">
+                            Edit
+                        </button>
+                        <form method="post" action="/accounts/{{ acc.id }}/delete" style="display:inline"
+                              onsubmit="return confirm('Delete account {{ acc.name }}? Transactions will not be deleted.')">
+                            <button type="submit" class="btn btn-secondary btn-sm">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-sm">No accounts yet. Create one to start assigning transactions.</p>
+    {% endif %}
+</div>
+
+<!-- Create modal -->
+<div class="modal-overlay" id="create-account-modal">
+    <div class="modal" style="max-width:440px">
+        <div class="modal-header">
+            <h3 class="modal-title">New Account</h3>
+            <button class="modal-close" onclick="closeModal('create-account-modal')">✕</button>
+        </div>
+        <form method="post" action="/accounts/create">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input type="text" name="name" class="form-control" required placeholder="e.g. Sparkasse Current">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input type="text" name="description" class="form-control" placeholder="Optional">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Currency</label>
+                    <input type="text" name="currency" class="form-control" value="MKD" maxlength="3" style="width:80px;text-transform:uppercase">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Create</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('create-account-modal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit modal -->
+<div class="modal-overlay" id="edit-account-modal">
+    <div class="modal" style="max-width:440px">
+        <div class="modal-header">
+            <h3 class="modal-title">Edit Account</h3>
+            <button class="modal-close" onclick="closeModal('edit-account-modal')">✕</button>
+        </div>
+        <form method="post" id="edit-account-form">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input type="text" name="name" id="edit-acc-name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input type="text" name="description" id="edit-acc-desc" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Currency</label>
+                    <input type="text" name="currency" id="edit-acc-currency" class="form-control" maxlength="3" style="width:80px;text-transform:uppercase">
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                        <input type="checkbox" name="is_active" id="edit-acc-active" value="1">
+                        Active
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('edit-account-modal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEditModal(id, name, description, currency, isActive) {
+    document.getElementById('edit-account-form').action = '/accounts/' + id + '/edit';
+    document.getElementById('edit-acc-name').value = name;
+    document.getElementById('edit-acc-desc').value = description;
+    document.getElementById('edit-acc-currency').value = currency;
+    document.getElementById('edit-acc-active').checked = isActive;
+    openModal('edit-account-modal');
+}
+</script>
+{% endblock %}

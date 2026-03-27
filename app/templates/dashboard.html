@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Finance Manager{% endblock %}
+{% block page_title %}Dashboard — {{ current_month }}{% endblock %}
+
+{% block content %}
+<!-- Alerts -->
+{% if uncategorized_count > 0 %}
+<div class="alert alert-warning">
+    ⚠️ <strong>{{ uncategorized_count }}</strong> uncategorized transactions.
+    <a href="/transactions?uncategorized=true">Categorize now →</a>
+</div>
+{% endif %}
+{% if overdue_subscriptions %}
+<div class="alert alert-danger">
+    🔔 <strong>{{ overdue_subscriptions|length }}</strong> overdue subscription(s):
+    {% for s in overdue_subscriptions %}{{ s.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+</div>
+{% endif %}
+{% if anomalies %}
+<div class="alert alert-info">
+    🔍 <strong>{{ anomalies|length }}</strong> anomalies detected.
+    <a href="/transactions">Review transactions →</a>
+</div>
+{% endif %}
+
+<!-- Summary Cards -->
+<div class="grid grid-4 mb-6">
+    <div class="card stat-card">
+        <div class="card-title">Income</div>
+        <div class="stat-value stat-income">{{ "%.2f"|format(summary.income|float) }}</div>
+        <div class="stat-label">MKD this month</div>
+    </div>
+    <div class="card stat-card">
+        <div class="card-title">Expenses</div>
+        <div class="stat-value stat-expense">{{ "%.2f"|format(summary.expenses|float) }}</div>
+        <div class="stat-label">MKD this month</div>
+    </div>
+    <div class="card stat-card">
+        <div class="card-title">Net</div>
+        <div class="stat-value {% if summary.net|float >= 0 %}stat-income{% else %}stat-expense{% endif %}">
+            {{ "%.2f"|format(summary.net|float) }}
+        </div>
+        <div class="stat-label">MKD this month</div>
+    </div>
+    <div class="card stat-card">
+        <div class="card-title">Subscriptions</div>
+        <div class="stat-value stat-neutral">{{ subscriptions|length }}</div>
+        <div class="stat-label">active</div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="grid grid-2 mb-6">
+    <div class="card">
+        <div class="card-title">Spending by Category</div>
+        <div class="chart-container">
+            <canvas id="categoryChart"></canvas>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-title">Daily Spending</div>
+        <div class="chart-container">
+            <canvas id="dailyChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Transactions + Subscriptions -->
+<div class="grid grid-2">
+    <div class="card">
+        <div class="flex justify-between items-center mb-4">
+            <div class="card-title" style="margin-bottom:0">Recent Transactions</div>
+            <a href="/transactions" class="btn btn-secondary btn-sm">View all</a>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Amount</th>
+                        <th>Category</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in recent_transactions %}
+                    <tr>
+                        <td class="text-sm text-muted">{{ tx.date.strftime('%d.%m') }}</td>
+                        <td class="truncate" style="max-width:160px" title="{{ tx.description }}">
+                            {{ tx.description_clean or tx.description }}
+                        </td>
+                        <td class="{% if tx.amount > 0 %}amount-positive{% else %}amount-negative{% endif %}">
+                            {{ "%.2f"|format(tx.amount|float) }}
+                        </td>
+                        <td>
+                            {% if tx.category %}
+                            <span class="badge badge-category" style="--cat-color: {{ tx.category.color or '#9E9E9E' }}">
+                                {{ tx.category.icon or '' }} {{ tx.category.name }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted text-sm">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" class="text-muted text-sm" style="text-align:center;padding:20px">No transactions yet</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="flex justify-between items-center mb-4">
+            <div class="card-title" style="margin-bottom:0">Upcoming Subscriptions</div>
+            <a href="/subscriptions" class="btn btn-secondary btn-sm">Manage</a>
+        </div>
+        {% if subscriptions %}
+        <div style="display:flex;flex-direction:column;gap:8px">
+            {% for sub in subscriptions[:6] %}
+            <div class="flex justify-between items-center" style="padding:8px;border-radius:6px;background:var(--bg)">
+                <div>
+                    <div style="font-weight:500;font-size:13px">{{ sub.name }}</div>
+                    <div class="text-muted text-sm">
+                        {{ sub.frequency }} · next: {{ sub.next_expected or '—' }}
+                    </div>
+                </div>
+                <div style="font-weight:600;font-size:14px">
+                    {% if sub.expected_amount %}{{ "%.2f"|format(sub.expected_amount|float) }} {{ sub.currency }}{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted text-sm">No subscriptions tracked yet. <a href="/subscriptions">Add one</a></p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+const textColor = () => isDark() ? '#94a3b8' : '#64748b';
+const gridColor = () => isDark() ? '#334155' : '#e2e8f0';
+
+async function initCharts() {
+    const [catData, dailyData] = await Promise.all([
+        fetch('/api/dashboard/spending-by-category').then(r => r.json()),
+        fetch('/api/dashboard/daily-spending').then(r => r.json()),
+    ]);
+
+    // Doughnut chart
+    new Chart(document.getElementById('categoryChart'), {
+        type: 'doughnut',
+        data: {
+            labels: catData.labels,
+            datasets: [{
+                data: catData.values,
+                backgroundColor: catData.colors,
+                borderWidth: 2,
+                borderColor: isDark() ? '#1e293b' : '#ffffff',
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { color: textColor(), font: { size: 11 } } }
+            }
+        }
+    });
+
+    // Daily bar chart
+    new Chart(document.getElementById('dailyChart'), {
+        type: 'bar',
+        data: {
+            labels: dailyData.labels,
+            datasets: [{
+                label: 'Spending',
+                data: dailyData.values,
+                backgroundColor: '#3b82f6',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: textColor(), maxRotation: 45 }, grid: { color: gridColor() } },
+                y: { ticks: { color: textColor() }, grid: { color: gridColor() } }
+            }
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initCharts);
+</script>
+{% endblock %}

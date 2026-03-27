@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Map Columns — Finance Manager{% endblock %}
+{% block page_title %}Map Columns: {{ filename }}{% endblock %}
+
+{% block content %}
+<div style="max-width:800px">
+    <div class="card mb-4">
+        <h3 style="margin-bottom:4px">Column Mapping</h3>
+        <p class="text-muted text-sm mb-6">Select which column corresponds to each field. Required: Date, Description, Amount (or Debit/Credit).</p>
+
+        <form method="post" action="/upload/import">
+            <input type="hidden" name="filename" value="{{ filename }}">
+            <input type="hidden" name="file_hex" value="{{ file_content_b64 }}">
+
+            <div class="form-group" style="margin-bottom:16px">
+                <label class="form-label">🏦 Account</label>
+                <select name="account_id" class="form-control">
+                    <option value="">— No account —</option>
+                    {% for acc in accounts %}
+                    <option value="{{ acc.id }}" {% if account_id == acc.id|string %}selected{% endif %}>
+                        {{ acc.name }}{% if acc.currency %} ({{ acc.currency }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="grid grid-2 mb-4">
+                <div class="form-group">
+                    <label class="form-label">📅 Date column *</label>
+                    <select name="col_date" class="form-control" required>
+                        <option value="">— Select —</option>
+                        {% for col in columns %}
+                        <option value="{{ col }}" {% if 'date' in col.lower() or 'datum' in col.lower() %}selected{% endif %}>{{ col }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">📝 Description column *</label>
+                    <select name="col_description" class="form-control" required>
+                        <option value="">— Select —</option>
+                        {% for col in columns %}
+                        <option value="{{ col }}" {% if 'desc' in col.lower() or 'text' in col.lower() or 'buchung' in col.lower() or 'zweck' in col.lower() %}selected{% endif %}>{{ col }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">💵 Amount column (single +/-)</label>
+                    <select name="col_amount" class="form-control">
+                        <option value="">— None (use Debit/Credit) —</option>
+                        {% for col in columns %}
+                        <option value="{{ col }}" {% if 'amount' in col.lower() or 'betrag' in col.lower() %}selected{% endif %}>{{ col }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">💳 Currency column</label>
+                    <select name="col_currency" class="form-control">
+                        <option value="">— None (default MKD) —</option>
+                        {% for col in columns %}
+                        <option value="{{ col }}" {% if 'currency' in col.lower() or 'währung' in col.lower() %}selected{% endif %}>{{ col }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">⬇️ Debit column (negative)</label>
+                    <select name="col_debit" class="form-control">
+                        <option value="">— None —</option>
+                        {% for col in columns %}
+                        <option value="{{ col }}" {% if 'debit' in col.lower() or 'belastung' in col.lower() %}selected{% endif %}>{{ col }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">⬆️ Credit column (positive)</label>
+                    <select name="col_credit" class="form-control">
+                        <option value="">— None —</option>
+                        {% for col in columns %}
+                        <option value="{{ col }}" {% if 'credit' in col.lower() or 'gutschrift' in col.lower() %}selected{% endif %}>{{ col }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">📅 Value Date column</label>
+                    <select name="col_value_date" class="form-control">
+                        <option value="">— None —</option>
+                        {% for col in columns %}
+                        <option value="{{ col }}" {% if 'value' in col.lower() and 'date' in col.lower() %}selected{% endif %}>{{ col }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary">📥 Import</button>
+                <a href="/upload" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Preview table -->
+    <div class="card">
+        <div class="card-title">File Preview (first 10 rows)</div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        {% for col in columns %}
+                        <th>{{ col }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        {% for cell in row %}
+                        <td class="text-sm">{{ cell }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

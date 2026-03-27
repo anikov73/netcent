@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Rules — Finance Manager{% endblock %}
+{% block page_title %}Categorization Rules{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-primary btn-sm" onclick="openModal('add-rule-modal')">+ Add Rule</button>
+{% endblock %}
+
+{% block content %}
+
+<!-- Add Rule Modal -->
+<div class="modal-overlay" id="add-rule-modal">
+    <div class="modal">
+        <div class="modal-title">Add Rule</div>
+        <form method="post" action="/rules/create">
+            <div class="form-group">
+                <label class="form-label">Pattern *</label>
+                <input type="text" name="pattern" class="form-control" required
+                       placeholder="e.g. migros|coop or netflix">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Match Type *</label>
+                <select name="match_type" class="form-control">
+                    <option value="contains">Contains (case-insensitive)</option>
+                    <option value="starts_with">Starts with</option>
+                    <option value="exact">Exact match</option>
+                    <option value="regex" selected>Regex</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category *</label>
+                <select name="category_id" class="form-control" required>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.icon or '' }} {{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Priority (higher = checked first)</label>
+                <input type="number" name="priority" class="form-control" value="5">
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary">Create</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('add-rule-modal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Rule Modal -->
+<div class="modal-overlay" id="edit-rule-modal">
+    <div class="modal">
+        <div class="modal-title">Edit Rule</div>
+        <form method="post" id="edit-rule-form" action="/rules/0/edit">
+            <div class="form-group">
+                <label class="form-label">Pattern *</label>
+                <input type="text" name="pattern" id="edit-pattern" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Match Type *</label>
+                <select name="match_type" id="edit-match-type" class="form-control">
+                    <option value="contains">Contains</option>
+                    <option value="starts_with">Starts with</option>
+                    <option value="exact">Exact match</option>
+                    <option value="regex">Regex</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category *</label>
+                <select name="category_id" id="edit-cat-id" class="form-control" required>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.icon or '' }} {{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Priority</label>
+                <input type="number" name="priority" id="edit-priority" class="form-control">
+            </div>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px">
+                    <input type="checkbox" name="is_active" id="edit-active" value="1"> Active
+                </label>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('edit-rule-modal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Test Rule -->
+<div class="card mb-4">
+    <div class="card-title">Test a Rule</div>
+    <form method="post" action="/rules/test" class="flex gap-2" style="flex-wrap:wrap">
+        <input type="text" name="pattern" class="form-control" placeholder="Pattern to test"
+               value="{{ test_pattern }}" style="flex:1;min-width:200px">
+        <select name="match_type" class="form-control" style="width:160px">
+            <option value="contains">Contains</option>
+            <option value="starts_with">Starts with</option>
+            <option value="exact">Exact</option>
+            <option value="regex" {% if test_match_type == 'regex' %}selected{% endif %}>Regex</option>
+        </select>
+        <button type="submit" class="btn btn-secondary">Test</button>
+    </form>
+    {% if test_results is not none %}
+    <div class="mt-4">
+        <strong>{{ test_results|length }} matching transactions:</strong>
+        {% if test_results %}
+        <ul style="margin-top:8px;font-size:13px">
+            {% for tx in test_results[:10] %}
+            <li style="padding:4px 0">{{ tx.date }} — {{ tx.description_clean or tx.description }} ({{ tx.amount }} {{ tx.currency }})</li>
+            {% endfor %}
+            {% if test_results|length > 10 %}
+            <li class="text-muted">...and {{ test_results|length - 10 }} more</li>
+            {% endif %}
+        </ul>
+        {% else %}
+        <p class="text-muted text-sm mt-2">No matching transactions found.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Bulk Actions -->
+<div class="flex gap-2 mb-4">
+    <form method="post" action="/rules/recategorize">
+        <button type="submit" class="btn btn-secondary btn-sm"
+                onclick="return confirm('Re-categorize all uncategorized transactions using current rules?')">
+            ⚙️ Re-categorize All
+        </button>
+    </form>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Priority</th>
+                    <th>Pattern</th>
+                    <th>Match Type</th>
+                    <th>Category</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rule in rules %}
+                <tr style="{% if not rule.is_active %}opacity:0.5{% endif %}">
+                    <td class="text-sm text-muted">{{ rule.priority }}</td>
+                    <td><code style="font-size:13px;background:var(--bg);padding:2px 6px;border-radius:4px">{{ rule.pattern }}</code></td>
+                    <td class="text-sm">{{ rule.match_type }}</td>
+                    <td>
+                        {% if rule.category %}
+                        <span class="badge badge-category" style="--cat-color:{{ rule.category.color or '#9E9E9E' }}">
+                            {{ rule.category.icon or '' }} {{ rule.category.name }}
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge" style="--cat-color:{% if rule.is_active %}#22c55e{% else %}#9E9E9E{% endif %};background:color-mix(in srgb, {% if rule.is_active %}#22c55e{% else %}#9E9E9E{% endif %} 15%, transparent);color:{% if rule.is_active %}#22c55e{% else %}#9E9E9E{% endif %}">
+                            {{ 'Active' if rule.is_active else 'Inactive' }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="flex gap-2">
+                            <button class="btn btn-secondary btn-sm" onclick="openEditRuleModal({{ rule.id }}, '{{ rule.pattern|replace("'", "\\'") }}', '{{ rule.match_type }}', {{ rule.category_id }}, {{ rule.priority }}, {{ 'true' if rule.is_active else 'false' }})">✏️</button>
+                            <form method="post" action="/rules/{{ rule.id }}/toggle" style="display:inline">
+                                <button type="submit" class="btn btn-secondary btn-sm" title="Toggle">
+                                    {{ '⏸' if rule.is_active else '▶️' }}
+                                </button>
+                            </form>
+                            <form method="post" action="/rules/{{ rule.id }}/delete" style="display:inline">
+                                <button type="submit" class="btn btn-danger btn-sm"
+                                        onclick="return confirm('Delete this rule?')">🗑️</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-muted text-sm" style="text-align:center;padding:20px">No rules yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEditRuleModal(id, pattern, matchType, catId, priority, isActive) {
+    document.getElementById('edit-rule-form').action = '/rules/' + id + '/edit';
+    document.getElementById('edit-pattern').value = pattern;
+    document.getElementById('edit-match-type').value = matchType;
+    document.getElementById('edit-cat-id').value = catId;
+    document.getElementById('edit-priority').value = priority;
+    document.getElementById('edit-active').checked = isActive;
+    openModal('edit-rule-modal');
+}
+</script>
+{% endblock %}

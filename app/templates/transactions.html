@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}Transactions — Finance Manager{% endblock %}
+{% block page_title %}Transactions{% endblock %}
+
+{% block topbar_actions %}
+<button id="open-shortcut-modal-btn" class="btn btn-secondary btn-sm" title="Configure keyboard shortcuts">⌨️ Shortcuts</button>
+<a href="/upload" class="btn btn-primary btn-sm">📤 Upload</a>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<form method="get" action="/transactions">
+<div class="filters">
+    <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search..." style="width:200px">
+    <select name="category_id" class="form-control" style="width:160px">
+        <option value="">All categories</option>
+        {% for cat in categories %}
+        <option value="{{ cat.id }}" {% if category_id == cat.id %}selected{% endif %}>{{ cat.icon or '' }} {{ cat.name }}</option>
+        {% endfor %}
+    </select>
+    <select name="account_id" class="form-control" style="width:150px">
+        <option value="">All accounts</option>
+        {% for acc in accounts %}
+        <option value="{{ acc.id }}" {% if account_id == acc.id %}selected{% endif %}>{{ acc.name }}</option>
+        {% endfor %}
+    </select>
+    <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="width:140px" title="From date">
+    <input type="date" name="date_to" value="{{ date_to }}" class="form-control" style="width:140px" title="To date">
+    <input type="number" name="amount_min" value="{{ amount_min }}" class="form-control" placeholder="Min amt" style="width:90px" step="0.01">
+    <input type="number" name="amount_max" value="{{ amount_max }}" class="form-control" placeholder="Max amt" style="width:90px" step="0.01">
+    <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap">
+        <input type="checkbox" name="uncategorized" value="true" {% if uncategorized %}checked{% endif %}> Uncategorized
+    </label>
+    <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap">
+        <input type="checkbox" name="expense_only" value="true" {% if expense_only %}checked{% endif %}> Expenses
+    </label>
+    <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap">
+        <input type="checkbox" name="income_only" value="true" {% if income_only %}checked{% endif %}> Income
+    </label>
+    <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+    <a href="/transactions" class="btn btn-secondary btn-sm">Clear</a>
+</div>
+</form>
+
+<div class="card">
+    <div class="flex justify-between items-center mb-4">
+        <span class="text-muted text-sm">{{ total }} transactions</span>
+        <div class="flex gap-2">
+            <form method="post" action="/rules/recategorize" style="display:inline">
+                <button type="submit" class="btn btn-secondary btn-sm"
+                        onclick="return confirm('Re-categorize all uncategorized transactions?')">
+                    ⚙️ Re-categorize
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Keyboard shortcut hints -->
+    <div id="shortcut-hints" style="margin-bottom:10px;min-height:20px"></div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>
+                        <a href="?sort=date&order={% if sort=='date' and order=='desc' %}asc{% else %}desc{% endif %}&q={{ q }}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if account_id %}&account_id={{ account_id }}{% endif %}">
+                            Date {% if sort=='date' %}{{ '↓' if order=='desc' else '↑' }}{% endif %}
+                        </a>
+                    </th>
+                    <th>Description</th>
+                    <th>Merchant</th>
+                    <th>
+                        <a href="?sort=amount&order={% if sort=='amount' and order=='desc' %}asc{% else %}desc{% endif %}&q={{ q }}">
+                            Amount {% if sort=='amount' %}{{ '↓' if order=='desc' else '↑' }}{% endif %}
+                        </a>
+                    </th>
+                    <th>Currency</th>
+                    <th>Account</th>
+                    <th>Category</th>
+                    <th>Notes</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tx in transactions %}
+                {# Main transaction row #}
+                <tr data-tx-id="{{ tx.id }}"
+                    data-tx-description="{{ (tx.description_clean or tx.description) | e }}"
+                    data-tx-merchant="{{ (tx.merchant or '') | e }}"
+                    data-tx-amount="{{ tx.amount }}"
+                    data-tx-currency="{{ tx.currency }}"
+                    data-tx-category-id="{{ tx.category_id or '' }}"
+                    style="cursor:default">
+                    <td class="text-sm text-muted" style="white-space:nowrap">{{ tx.date.strftime('%d.%m.%Y') }}</td>
+                    <td class="truncate tx-description" style="max-width:200px" title="{{ tx.description }}">
+                        {{ tx.description_clean or tx.description }}
+                    </td>
+                    <td class="text-sm tx-merchant">{{ tx.merchant or '—' }}</td>
+                    <td class="tx-amount {% if tx.amount > 0 %}amount-positive{% else %}amount-negative{% endif %}" style="white-space:nowrap">
+                        {{ "%.2f"|format(tx.amount|float) }}
+                    </td>
+                    <td class="text-sm text-muted tx-currency">{{ tx.currency }}</td>
+                    <td class="text-sm text-muted">{{ tx.account.name if tx.account else '—' }}</td>
+                    <td class="tx-category">
+                        {% if tx.category %}
+                        <span class="badge badge-category" style="--cat-color: {{ tx.category.color or '#9E9E9E' }}">
+                            {{ tx.category.icon or '' }} {{ tx.category.name }}
+                        </span>
+                        {% else %}
+                        <span class="text-muted text-sm">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-sm text-muted truncate" style="max-width:120px">{{ tx.notes or '' }}</td>
+                    <td>
+                        <a href="/transactions/{{ tx.id }}" class="btn btn-secondary btn-sm btn-icon" title="Edit">✏️</a>
+                    </td>
+                </tr>
+                {# Inline edit row — hidden by default #}
+                <tr id="edit-row-{{ tx.id }}"
+                    class="inline-edit-row"
+                    data-edit-tx-id="{{ tx.id }}"
+                    style="display:none">
+                    <td></td>
+                    <td colspan="2">
+                        <input type="text" name="description_clean"
+                               class="form-control"
+                               style="width:100%"
+                               placeholder="Description">
+                    </td>
+                    <td style="white-space:nowrap">
+                        <input type="number" name="amount"
+                               class="form-control"
+                               style="width:110px"
+                               step="0.01"
+                               placeholder="Amount">
+                    </td>
+                    <td>
+                        <input type="text" name="currency"
+                               class="form-control"
+                               style="width:60px;text-transform:uppercase"
+                               maxlength="3"
+                               placeholder="CCY">
+                    </td>
+                    <td>
+                        <input type="text" name="merchant"
+                               class="form-control"
+                               style="width:120px"
+                               placeholder="Merchant">
+                    </td>
+                    <td></td>
+                    <td></td>
+                    <td style="white-space:nowrap">
+                        <button class="btn btn-primary btn-sm edit-save-btn">Save</button>
+                        <button class="btn btn-secondary btn-sm edit-cancel-btn">✕</button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" style="text-align:center;padding:40px" class="text-muted">
+                        No transactions found. <a href="/upload">Upload a file to get started.</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        {% if page > 1 %}
+        <a href="?page={{ page-1 }}&q={{ q }}&sort={{ sort }}&order={{ order }}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if account_id %}&account_id={{ account_id }}{% endif %}" class="page-btn">←</a>
+        {% else %}
+        <span class="page-btn disabled">←</span>
+        {% endif %}
+
+        {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
+        <a href="?page={{ p }}&q={{ q }}&sort={{ sort }}&order={{ order }}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if account_id %}&account_id={{ account_id }}{% endif %}"
+           class="page-btn {% if p == page %}active{% endif %}">{{ p }}</a>
+        {% endfor %}
+
+        {% if page < total_pages %}
+        <a href="?page={{ page+1 }}&q={{ q }}&sort={{ sort }}&order={{ order }}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if account_id %}&account_id={{ account_id }}{% endif %}" class="page-btn">→</a>
+        {% else %}
+        <span class="page-btn disabled">→</span>
+        {% endif %}
+    </div>
+    <div class="text-center text-muted text-sm mt-4">Page {{ page }} of {{ total_pages }}</div>
+    {% endif %}
+</div>
+
+<!-- Shortcut config modal -->
+<div class="modal-overlay" id="shortcut-modal">
+    <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+            <h3 class="modal-title">⌨️ Keyboard Shortcuts</h3>
+            <button class="modal-close" onclick="closeModal('shortcut-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted text-sm" style="margin-bottom:12px">
+                Hover over a transaction row, then press a key:<br>
+                <strong>e</strong> — inline edit (description, merchant, amount, currency)<br>
+                <strong>0</strong> — clear category<br>
+                <strong>Enter</strong> — save edit &nbsp; <strong>Esc</strong> — cancel
+            </p>
+            <p class="text-sm" style="margin-bottom:8px">Assign a key to each category:</p>
+            <div id="shortcut-modal-body"></div>
+        </div>
+        <div class="modal-footer">
+            <button id="save-shortcuts-btn" class="btn btn-primary">Save shortcuts</button>
+            <button class="btn btn-secondary" onclick="closeModal('shortcut-modal')">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/transactions.js"></script>
+{% endblock %}

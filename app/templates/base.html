@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Finance Manager{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <script src="/static/js/app.js"></script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+<!-- Hidden flash messages -->
+{% for msg in flash_messages %}
+<span class="flash-msg" data-message="{{ msg.message }}" data-type="{{ msg.type }}" style="display:none"></span>
+{% endfor %}
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+    <a href="/" class="sidebar-logo">💳 FinanceApp</a>
+    <nav class="sidebar-nav">
+        <a href="/" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+            <span class="nav-icon">📊</span> Dashboard
+        </a>
+        <a href="/transactions" class="nav-item {% if active_page == 'transactions' %}active{% endif %}">
+            <span class="nav-icon">📋</span> Transactions
+        </a>
+        <a href="/upload" class="nav-item {% if active_page == 'upload' %}active{% endif %}">
+            <span class="nav-icon">📤</span> Upload
+        </a>
+        <a href="/reports" class="nav-item {% if active_page == 'reports' %}active{% endif %}">
+            <span class="nav-icon">📈</span> Reports
+        </a>
+        <a href="/subscriptions" class="nav-item {% if active_page == 'subscriptions' %}active{% endif %}">
+            <span class="nav-icon">🔄</span> Subscriptions
+        </a>
+        <a href="/categories" class="nav-item {% if active_page == 'categories' %}active{% endif %}">
+            <span class="nav-icon">🏷️</span> Categories
+        </a>
+        <a href="/rules" class="nav-item {% if active_page == 'rules' %}active{% endif %}">
+            <span class="nav-icon">⚙️</span> Rules
+        </a>
+        <a href="/accounts" class="nav-item {% if active_page == 'accounts' %}active{% endif %}">
+            <span class="nav-icon">🏦</span> Accounts
+        </a>
+        <a href="/data" class="nav-item {% if active_page == 'data' %}active{% endif %}">
+            <span class="nav-icon">🔄</span> Export / Import
+        </a>
+    </nav>
+    <div class="sidebar-footer">
+        <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()">🌙 Dark Mode</button>
+    </div>
+</aside>
+
+<!-- Main content -->
+<div class="main">
+    <header class="topbar">
+        <div class="flex items-center gap-2">
+            <button class="hamburger" onclick="toggleSidebar()">☰</button>
+            <span class="topbar-title">{% block page_title %}{% endblock %}</span>
+        </div>
+        <div class="flex items-center gap-2">
+            {% block topbar_actions %}{% endblock %}
+        </div>
+    </header>
+
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

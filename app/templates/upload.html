@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Upload — Finance Manager{% endblock %}
+{% block page_title %}Upload Transactions{% endblock %}
+
+{% block content %}
+{% for msg in flash_messages %}
+{% if msg.message %}
+<div class="alert alert-{{ 'success' if msg.type == 'success' else 'danger' if msg.type == 'error' else 'info' }}">
+    {{ msg.message }}
+</div>
+{% endif %}
+{% endfor %}
+
+<div style="max-width:640px">
+    <div class="card mb-6">
+
+        <!-- Account selector (shared by both flows) -->
+        <div class="form-group" style="margin-bottom:20px">
+            <label class="form-label">🏦 Account</label>
+            <div style="display:flex;gap:8px;align-items:center">
+                <select id="shared-account-id" class="form-control" style="flex:1">
+                    <option value="">— No account —</option>
+                    {% for acc in accounts %}
+                    <option value="{{ acc.id }}">{{ acc.name }}{% if acc.currency %} ({{ acc.currency }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <a href="/accounts" class="btn btn-secondary btn-sm" title="Manage accounts">⚙️</a>
+            </div>
+            {% if not accounts %}
+            <p class="text-muted text-sm" style="margin-top:4px">No accounts yet. <a href="/accounts">Create one</a> to assign transactions.</p>
+            {% endif %}
+        </div>
+
+        {% if has_openai %}
+        <!-- AI Import -->
+        <h3 style="margin-bottom:4px">✨ Smart Import</h3>
+        <p class="text-muted text-sm mb-4">AI reads any bank statement format and extracts all transactions automatically. Supports any language including Macedonian/Cyrillic.</p>
+
+        <form method="post" action="/upload/ai" enctype="multipart/form-data" id="ai-form">
+            <input type="hidden" name="account_id" id="ai-account-id">
+            <div class="upload-area" id="ai-upload-area">
+                <div style="font-size:40px;margin-bottom:8px">🤖</div>
+                <p style="font-size:15px;font-weight:500">Drop file here or click to upload</p>
+                <p class="text-muted text-sm" style="margin-top:8px">.xlsx / .xls / .csv — any format</p>
+                <input type="file" name="file" id="ai-file-input" accept=".xlsx,.xls,.csv"
+                       style="display:none" onchange="submitAiForm()">
+            </div>
+        </form>
+
+        <div id="ai-loading" style="display:none;text-align:center;padding:24px">
+            <div style="font-size:32px;margin-bottom:8px;animation:spin 1.5s linear infinite;display:inline-block">⏳</div>
+            <p style="font-weight:500;margin-bottom:4px">AI is reading your bank statement…</p>
+            <p class="text-muted text-sm">Extracting and translating transactions. This takes 5–20 seconds.</p>
+        </div>
+
+        <hr style="margin:20px 0;border-color:var(--border)">
+        <details>
+            <summary class="text-muted text-sm" style="cursor:pointer">Manual column mapping (advanced)</summary>
+            <div style="margin-top:12px">
+        {% endif %}
+
+        <form method="post" action="/upload/preview" enctype="multipart/form-data" id="manual-form">
+            <input type="hidden" name="account_id" id="manual-account-id">
+            <div class="upload-area" id="upload-area">
+                <div style="font-size:40px;margin-bottom:8px">📂</div>
+                <p style="font-size:15px;font-weight:500">Select file to map columns manually</p>
+                <p class="text-muted text-sm" style="margin-top:8px">.xlsx / .xls / .csv</p>
+                <input type="file" name="file" id="file-input" accept=".xlsx,.xls,.csv"
+                       style="display:none" onchange="submitManualForm()">
+            </div>
+        </form>
+
+        {% if has_openai %}
+            </div>
+        </details>
+        {% endif %}
+
+    </div>
+
+    <!-- Import History -->
+    <div class="card">
+        <div class="card-title">Import History</div>
+        {% if logs %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Date</th>
+                        <th>New</th>
+                        <th>Dupes</th>
+                        <th>Errors</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td class="text-sm">{{ log.filename }}</td>
+                        <td class="text-sm text-muted">{{ log.imported_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td class="amount-positive">{{ log.new_rows or 0 }}</td>
+                        <td class="text-muted text-sm">{{ log.duplicate_rows or 0 }}</td>
+                        <td class="{% if log.error_rows %}amount-negative{% else %}text-muted{% endif %}">{{ log.error_rows or 0 }}</td>
+                        <td>
+                            <span class="badge badge-category"
+                                  style="--cat-color:{% if log.status == 'success' %}#22c55e{% elif log.status == 'partial' %}#f59e0b{% else %}#ef4444{% endif %}">
+                                {{ log.status }}
+                            </span>
+                        </td>
+                        <td><a href="/upload/logs/{{ log.id }}" class="btn btn-secondary btn-sm">View</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-sm">No imports yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    initUploadArea('upload-area', 'file-input');
+    {% if has_openai %}
+    initUploadArea('ai-upload-area', 'ai-file-input');
+    {% endif %}
+});
+
+function submitAiForm() {
+    document.getElementById('ai-account-id').value = document.getElementById('shared-account-id').value;
+    document.getElementById('ai-upload-area').style.display = 'none';
+    document.getElementById('ai-loading').style.display = 'block';
+    document.getElementById('ai-form').submit();
+}
+
+function submitManualForm() {
+    document.getElementById('manual-account-id').value = document.getElementById('shared-account-id').value;
+    document.getElementById('manual-form').submit();
+}
+</script>
+{% endblock %}

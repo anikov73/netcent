@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Year-over-Year — Finance Manager{% endblock %}
+{% block page_title %}Year-over-Year Comparison{% endblock %}
+
+{% block content %}
+<div class="card mb-6">
+    <div class="chart-container" style="height:380px">
+        <canvas id="yoyChart"></canvas>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">Monthly Expenses by Year</div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    {% for year in yoy_data.keys()|sort %}
+                    <th>{{ year }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% set months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] %}
+                {% for m in range(1, 13) %}
+                <tr>
+                    <td>{{ months[m-1] }}</td>
+                    {% for year in yoy_data.keys()|sort %}
+                    <td class="amount-negative">
+                        {% if yoy_data[year].get(m) %}
+                        {{ "%.2f"|format(yoy_data[year][m].expenses|float) }}
+                        {% else %}—{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+const textColor = () => isDark() ? '#94a3b8' : '#64748b';
+const gridColor = () => isDark() ? '#334155' : '#e2e8f0';
+
+document.addEventListener('DOMContentLoaded', async function() {
+    const data = await fetch('/api/reports/yoy').then(r => r.json());
+
+    const colors = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#8b5cf6'];
+
+    new Chart(document.getElementById('yoyChart'), {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: data.datasets.map((ds, i) => ({
+                label: ds.label,
+                data: ds.data,
+                backgroundColor: colors[i % colors.length],
+                borderRadius: 4,
+            }))
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: textColor() } } },
+            scales: {
+                x: { ticks: { color: textColor() }, grid: { color: gridColor() } },
+                y: { ticks: { color: textColor() }, grid: { color: gridColor() }, beginAtZero: true }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

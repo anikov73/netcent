@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Balance Over Time — Finance Manager{% endblock %}
+{% block page_title %}Balance Over Time{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="chart-container" style="height:400px">
+        <canvas id="balanceChart"></canvas>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+const textColor = () => isDark() ? '#94a3b8' : '#64748b';
+const gridColor = () => isDark() ? '#334155' : '#e2e8f0';
+
+document.addEventListener('DOMContentLoaded', async function() {
+    const data = await fetch('/api/reports/balance-over-time').then(r => r.json());
+
+    new Chart(document.getElementById('balanceChart'), {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Balance (MKD)',
+                data: data.values,
+                borderColor: '#3b82f6',
+                backgroundColor: '#3b82f620',
+                fill: true,
+                tension: 0.2,
+                pointRadius: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: textColor() } } },
+            scales: {
+                x: {
+                    ticks: { color: textColor(), maxTicksLimit: 12, maxRotation: 45 },
+                    grid: { color: gridColor() }
+                },
+                y: { ticks: { color: textColor() }, grid: { color: gridColor() } }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Reports — Finance Manager{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block content %}
+<div class="grid grid-3">
+    <a href="/reports/monthly" class="card" style="text-decoration:none;color:inherit;transition:transform 0.1s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div style="font-size:36px;margin-bottom:8px">📅</div>
+        <div style="font-size:16px;font-weight:600">Monthly Breakdown</div>
+        <div class="text-muted text-sm mt-4">Spending by category for any month, with month-over-month comparison.</div>
+    </a>
+    <a href="/reports/trends" class="card" style="text-decoration:none;color:inherit;transition:transform 0.1s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div style="font-size:36px;margin-bottom:8px">📈</div>
+        <div style="font-size:16px;font-weight:600">Category Trends</div>
+        <div class="text-muted text-sm mt-4">Track spending categories over time. Compare multiple categories.</div>
+    </a>
+    <a href="/reports/income-expenses" class="card" style="text-decoration:none;color:inherit;transition:transform 0.1s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div style="font-size:36px;margin-bottom:8px">⚖️</div>
+        <div style="font-size:16px;font-weight:600">Income vs Expenses</div>
+        <div class="text-muted text-sm mt-4">Monthly income vs expenses with savings rate.</div>
+    </a>
+    <a href="/reports/merchants" class="card" style="text-decoration:none;color:inherit;transition:transform 0.1s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div style="font-size:36px;margin-bottom:8px">🏪</div>
+        <div style="font-size:16px;font-weight:600">Top Merchants</div>
+        <div class="text-muted text-sm mt-4">Ranked list of where you spend the most money.</div>
+    </a>
+    <a href="/reports/balance" class="card" style="text-decoration:none;color:inherit;transition:transform 0.1s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div style="font-size:36px;margin-bottom:8px">💰</div>
+        <div style="font-size:16px;font-weight:600">Balance Over Time</div>
+        <div class="text-muted text-sm mt-4">Cumulative balance trend from all transactions.</div>
+    </a>
+    <a href="/reports/yoy" class="card" style="text-decoration:none;color:inherit;transition:transform 0.1s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div style="font-size:36px;margin-bottom:8px">📊</div>
+        <div style="font-size:16px;font-weight:600">Year-over-Year</div>
+        <div class="text-muted text-sm mt-4">Compare spending across years by month.</div>
+    </a>
+</div>
+{% endblock %}

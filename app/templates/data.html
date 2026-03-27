@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Export / Import — Finance Manager{% endblock %}
+{% block page_title %}Export / Import{% endblock %}
+
+{% block content %}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+
+    <!-- Export -->
+    <div class="card">
+        <h2 style="font-size:18px;font-weight:600;margin-bottom:4px">📤 Export Transactions</h2>
+        <p class="text-muted text-sm" style="margin-bottom:20px">
+            Download transactions as a JSON file. Leave dates or account empty to export all.
+        </p>
+        <form method="get" action="/data/export">
+            <div style="display:flex;flex-direction:column;gap:14px">
+                <div>
+                    <label class="form-label">Account</label>
+                    <select name="account_id" class="form-control">
+                        <option value="">— All accounts —</option>
+                        {% for acc in accounts %}
+                        <option value="{{ acc.id }}">{{ acc.name }}{% if acc.currency %} ({{ acc.currency }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Date from</label>
+                    <input type="date" name="date_from" value="{{ default_date_from }}" class="form-control">
+                </div>
+                <div>
+                    <label class="form-label">Date to</label>
+                    <input type="date" name="date_to" value="{{ default_date_to }}" class="form-control">
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary" style="width:100%">
+                        ⬇️ Download JSON
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Import -->
+    <div class="card">
+        <h2 style="font-size:18px;font-weight:600;margin-bottom:4px">📥 Import Transactions</h2>
+        <p class="text-muted text-sm" style="margin-bottom:20px">
+            Upload a JSON file previously exported from this app. Duplicates are skipped automatically.
+            Categories and accounts are matched by name. Selecting an account here overrides the one in the file.
+        </p>
+        <form method="post" action="/data/import" enctype="multipart/form-data">
+            <div style="display:flex;flex-direction:column;gap:14px">
+                <div>
+                    <label class="form-label">Account (override)</label>
+                    <select name="account_id" class="form-control">
+                        <option value="">— Use account from file —</option>
+                        {% for acc in accounts %}
+                        <option value="{{ acc.id }}">{{ acc.name }}{% if acc.currency %} ({{ acc.currency }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">JSON file</label>
+                    <div class="upload-area" id="import-drop-area" style="padding:24px">
+                        <input type="file" id="import-file" name="file" accept=".json" style="display:none" required>
+                        <div id="import-drop-label">
+                            <div style="font-size:32px;margin-bottom:8px">📂</div>
+                            <div class="text-sm text-muted">Click to choose or drag a <strong>.json</strong> file here</div>
+                        </div>
+                        <div id="import-file-name" class="text-sm" style="display:none;color:var(--accent);font-weight:500"></div>
+                    </div>
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary" style="width:100%">
+                        ⬆️ Import JSON
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+            <p class="text-muted text-sm"><strong>Expected format:</strong></p>
+            <pre style="font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;overflow-x:auto;margin-top:8px;line-height:1.5">{
+  "transactions": [
+    {
+      "date": "2024-01-15",
+      "description": "Payment",
+      "amount": -42.50,
+      "currency": "MKD",
+      "account": "Savings",
+      "category": "Food &amp; Groceries",
+      "merchant": "Skopje Market",
+      "notes": ""
+    }
+  ]
+}</pre>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const area = document.getElementById('import-drop-area');
+    const input = document.getElementById('import-file');
+    const label = document.getElementById('import-drop-label');
+    const nameBadge = document.getElementById('import-file-name');
+
+    function showFile(name) {
+        label.style.display = 'none';
+        nameBadge.textContent = '📄 ' + name;
+        nameBadge.style.display = '';
+    }
+
+    area.addEventListener('click', () => input.click());
+    area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('drag-over'); });
+    area.addEventListener('dragleave', () => area.classList.remove('drag-over'));
+    area.addEventListener('drop', e => {
+        e.preventDefault();
+        area.classList.remove('drag-over');
+        if (e.dataTransfer.files.length) {
+            input.files = e.dataTransfer.files;
+            showFile(e.dataTransfer.files[0].name);
+        }
+    });
+    input.addEventListener('change', () => {
+        if (input.files.length) showFile(input.files[0].name);
+    });
+})();
+</script>
+{% endblock %}

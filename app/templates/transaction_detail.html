@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Transaction Detail — Finance Manager{% endblock %}
+{% block page_title %}Transaction Detail{% endblock %}
+
+{% block content %}
+<div style="max-width:600px">
+    <div class="flex gap-2 mb-4">
+        <a href="/transactions" class="btn btn-secondary btn-sm">← Back</a>
+    </div>
+
+    <div class="card mb-4">
+        <table style="width:100%">
+            <tr><td style="width:140px;color:var(--text-muted);padding:6px 0">Date</td><td>{{ tx.date.strftime('%d.%m.%Y') }}</td></tr>
+            <tr><td style="color:var(--text-muted);padding:6px 0">Description</td><td>{{ tx.description }}</td></tr>
+            <tr><td style="color:var(--text-muted);padding:6px 0">Amount</td>
+                <td class="{% if tx.amount > 0 %}amount-positive{% else %}amount-negative{% endif %}" style="font-weight:600;font-size:18px">
+                    {{ "%.2f"|format(tx.amount|float) }} {{ tx.currency }}
+                </td>
+            </tr>
+            <tr><td style="color:var(--text-muted);padding:6px 0">Import Hash</td><td class="text-sm text-muted">{{ tx.import_hash[:16] }}...</td></tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-bottom:16px;font-size:16px">Edit Transaction</h3>
+        <form method="post" action="/transactions/{{ tx.id }}/edit">
+            <div class="form-group">
+                <label class="form-label">Clean Description</label>
+                <input type="text" name="description_clean" class="form-control"
+                       value="{{ tx.description_clean or '' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Merchant</label>
+                <input type="text" name="merchant" class="form-control"
+                       value="{{ tx.merchant or '' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <select name="category_id" class="form-control">
+                    <option value="0">— Uncategorized —</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}" {% if tx.category_id == cat.id %}selected{% endif %}>
+                        {{ cat.icon or '' }} {{ cat.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea name="notes" class="form-control" rows="3">{{ tx.notes or '' }}</textarea>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <a href="/transactions" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Create rule from this transaction -->
+    <div class="card mt-4">
+        <h3 style="margin-bottom:16px;font-size:16px">Create Rule from this Transaction</h3>
+        <form method="post" action="/rules/create">
+            <div class="form-group">
+                <label class="form-label">Pattern</label>
+                <input type="text" name="pattern" class="form-control"
+                       value="{{ tx.merchant or (tx.description_clean or tx.description)[:40] }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Match Type</label>
+                <select name="match_type" class="form-control">
+                    <option value="contains">Contains</option>
+                    <option value="starts_with">Starts with</option>
+                    <option value="exact">Exact</option>
+                    <option value="regex">Regex</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <select name="category_id" class="form-control">
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}" {% if tx.category_id == cat.id %}selected{% endif %}>
+                        {{ cat.icon or '' }} {{ cat.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <input type="hidden" name="priority" value="5">
+            <button type="submit" class="btn btn-secondary btn-sm">Create Rule</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Confirm Import — Finance Manager{% endblock %}
+{% block page_title %}Confirm Smart Import: {{ filename }}{% endblock %}
+
+{% block content %}
+<div style="max-width:860px">
+
+    <!-- Detected mapping summary -->
+    <div class="card mb-4">
+        <div style="font-size:15px;font-weight:600;margin-bottom:12px">✨ AI-Detected Column Mapping</div>
+        <div class="grid grid-3" style="gap:10px;margin-bottom:0">
+            {% set field_labels = {
+                'date': '📅 Date',
+                'value_date': '📅 Value Date',
+                'description': '📝 Description',
+                'amount': '💵 Amount',
+                'debit': '⬇️ Debit',
+                'credit': '⬆️ Credit',
+                'currency': '💱 Currency',
+                'balance': '⚖️ Balance'
+            } %}
+            {% for field, col in column_mapping.items() %}
+            <div style="padding:8px 12px;background:var(--bg);border-radius:6px;border:1px solid var(--border)">
+                <div class="text-muted text-sm">{{ field_labels.get(field, field) }}</div>
+                <div style="font-weight:500;font-size:13px;margin-top:2px">{{ col }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% if not column_mapping %}
+        <div class="alert alert-warning" style="margin-top:8px;margin-bottom:0">
+            ⚠️ No columns detected. Try manual mapping instead.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Data preview -->
+    <div class="card mb-6">
+        <div class="card-title">Data Preview (first 5 rows)</div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        {% for col in preview_cols %}
+                        <th style="{% if col in column_mapping.values() %}background:rgba(59,130,246,0.1);color:var(--accent){% endif %}">
+                            {{ col }}
+                            {% for field, mapped_col in column_mapping.items() %}
+                                {% if mapped_col == col %}
+                                <span class="badge" style="background:rgba(59,130,246,0.15);color:var(--accent);font-size:10px">{{ field }}</span>
+                                {% endif %}
+                            {% endfor %}
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in preview_rows %}
+                    <tr>
+                        {% for cell in row %}
+                        <td class="text-sm {% if preview_cols[loop.index0] in column_mapping.values() %}font-bold{% endif %}">
+                            {{ cell if cell != 'nan' else '' }}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Confirm / Cancel -->
+    <div class="flex gap-2">
+        {% if column_mapping.get('date') and column_mapping.get('description') and (column_mapping.get('amount') or column_mapping.get('debit') or column_mapping.get('credit')) %}
+        <form method="post" action="/upload/autodetect/confirm">
+            <input type="hidden" name="filename" value="{{ filename }}">
+            <input type="hidden" name="file_hex" value="{{ file_hex }}">
+            <input type="hidden" name="llm_result_json" value="{{ llm_result_json }}">
+            <button type="submit" class="btn btn-primary">✅ Import {{ filename }}</button>
+        </form>
+        {% else %}
+        <div class="alert alert-warning" style="margin-bottom:0">
+            Missing required columns (date, description, amount). Use manual mapping.
+        </div>
+        {% endif %}
+        <a href="/upload" class="btn btn-secondary">Cancel</a>
+        <a href="/upload/preview" class="btn btn-secondary" onclick="history.back(); return false;">← Manual Mapping</a>
+    </div>
+</div>
+{% endblock %}

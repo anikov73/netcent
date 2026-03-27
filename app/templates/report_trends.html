@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Category Trends — Finance Manager{% endblock %}
+{% block page_title %}Category Trends{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="flex gap-4 items-center flex-wrap">
+        <div>
+            <label class="form-label">Time Range</label>
+            <select id="months-select" class="form-control" style="width:120px" onchange="loadChart()">
+                <option value="3">3 months</option>
+                <option value="6" selected>6 months</option>
+                <option value="12">12 months</option>
+                <option value="24">24 months</option>
+            </select>
+        </div>
+        <div style="flex:1">
+            <label class="form-label">Categories (multi-select)</label>
+            <select id="cat-select" class="form-control" multiple style="height:80px">
+                {% for cat in categories %}
+                <option value="{{ cat.id }}" selected>{{ cat.icon or '' }} {{ cat.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button class="btn btn-primary btn-sm" style="align-self:flex-end" onclick="loadChart()">Update</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="chart-container" style="height:350px">
+        <canvas id="trendsChart"></canvas>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+const textColor = () => isDark() ? '#94a3b8' : '#64748b';
+const gridColor = () => isDark() ? '#334155' : '#e2e8f0';
+
+let chart = null;
+
+async function loadChart() {
+    const months = document.getElementById('months-select').value;
+    const catSelect = document.getElementById('cat-select');
+    const catIds = Array.from(catSelect.selectedOptions).map(o => o.value).join(',');
+    if (!catIds) return;
+
+    const data = await fetch(`/api/reports/category-trends?category_ids=${catIds}&months=${months}`).then(r => r.json());
+
+    const colors = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+
+    if (chart) chart.destroy();
+    chart = new Chart(document.getElementById('trendsChart'), {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: data.datasets.map((ds, i) => ({
+                label: ds.label,
+                data: ds.data,
+                borderColor: ds.color || colors[i % colors.length],
+                backgroundColor: (ds.color || colors[i % colors.length]) + '20',
+                fill: false,
+                tension: 0.3,
+                pointRadius: 4,
+            }))
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: textColor() } } },
+            scales: {
+                x: { ticks: { color: textColor() }, grid: { color: gridColor() } },
+                y: { ticks: { color: textColor() }, grid: { color: gridColor() }, beginAtZero: true }
+            }
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', loadChart);
+</script>
+{% endblock %}

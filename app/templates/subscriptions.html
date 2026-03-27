@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}Subscriptions — Finance Manager{% endblock %}
+{% block page_title %}Subscription Tracker{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-primary btn-sm" onclick="openModal('add-sub-modal')">+ Add Subscription</button>
+{% endblock %}
+
+{% block content %}
+
+{% if overdue %}
+<div class="alert alert-danger">
+    🔔 <strong>{{ overdue|length }}</strong> overdue subscription(s):
+    {% for s in overdue %}{{ s.name }} (expected {{ s.next_expected }}){% if not loop.last %}, {% endif %}{% endfor %}
+</div>
+{% endif %}
+
+<!-- Summary Cards -->
+<div class="grid grid-3 mb-6">
+    <div class="card stat-card">
+        <div class="card-title">Active Subscriptions</div>
+        <div class="stat-value">{{ subscriptions|selectattr('is_active')|list|length }}</div>
+    </div>
+    <div class="card stat-card">
+        <div class="card-title">Monthly Cost</div>
+        <div class="stat-value stat-expense">{{ "%.2f"|format(monthly_cost) }} MKD</div>
+    </div>
+    <div class="card stat-card">
+        <div class="card-title">Yearly Cost</div>
+        <div class="stat-value stat-expense">{{ "%.2f"|format(yearly_cost) }} MKD</div>
+    </div>
+</div>
+
+<!-- Auto-detect button -->
+<div class="flex gap-2 mb-4">
+    <form method="post" action="/subscriptions/detect">
+        <button type="submit" class="btn btn-secondary btn-sm"
+                onclick="return confirm('Scan transactions for recurring patterns?')">
+            🔍 Auto-detect Subscriptions
+        </button>
+    </form>
+</div>
+
+<!-- Add Modal -->
+<div class="modal-overlay" id="add-sub-modal">
+    <div class="modal">
+        <div class="modal-title">Add Subscription</div>
+        <form method="post" action="/subscriptions/create">
+            <div class="form-group">
+                <label class="form-label">Name *</label>
+                <input type="text" name="name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Merchant (for matching)</label>
+                <input type="text" name="merchant" class="form-control">
+            </div>
+            <div class="grid grid-2">
+                <div class="form-group">
+                    <label class="form-label">Expected Amount</label>
+                    <input type="number" name="expected_amount" class="form-control" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Currency</label>
+                    <input type="text" name="currency" class="form-control" value="MKD">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Frequency *</label>
+                <select name="frequency" class="form-control">
+                    <option value="monthly">Monthly</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <select name="category_id" class="form-control">
+                    <option value="">— None —</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.icon or '' }} {{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea name="notes" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary">Create</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('add-sub-modal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="edit-sub-modal">
+    <div class="modal">
+        <div class="modal-title">Edit Subscription</div>
+        <form method="post" id="edit-sub-form" action="/subscriptions/0/edit">
+            <div class="form-group">
+                <label class="form-label">Name *</label>
+                <input type="text" name="name" id="edit-sub-name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Merchant</label>
+                <input type="text" name="merchant" id="edit-sub-merchant" class="form-control">
+            </div>
+            <div class="grid grid-2">
+                <div class="form-group">
+                    <label class="form-label">Amount</label>
+                    <input type="number" name="expected_amount" id="edit-sub-amount" class="form-control" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Currency</label>
+                    <input type="text" name="currency" id="edit-sub-currency" class="form-control">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Frequency</label>
+                <select name="frequency" id="edit-sub-freq" class="form-control">
+                    <option value="monthly">Monthly</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <select name="category_id" id="edit-sub-cat" class="form-control">
+                    <option value="">— None —</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.icon or '' }} {{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px">
+                    <input type="checkbox" name="is_active" id="edit-sub-active" value="1"> Active
+                </label>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea name="notes" id="edit-sub-notes" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('edit-sub-modal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Amount</th>
+                    <th>Frequency</th>
+                    <th>Category</th>
+                    <th>Last Seen</th>
+                    <th>Next Expected</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sub in subscriptions %}
+                {% set today = namespace(val=none) %}
+                <tr>
+                    <td>
+                        <div style="font-weight:500">{{ sub.name }}</div>
+                        {% if sub.merchant %}<div class="text-muted text-sm">{{ sub.merchant }}</div>{% endif %}
+                    </td>
+                    <td>
+                        {% if sub.expected_amount %}
+                        <span class="amount-negative">{{ "%.2f"|format(sub.expected_amount|float) }} {{ sub.currency }}</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="text-sm">{{ sub.frequency }}</td>
+                    <td>
+                        {% if sub.category %}
+                        <span class="badge badge-category" style="--cat-color:{{ sub.category.color or '#9E9E9E' }}">
+                            {{ sub.category.icon or '' }} {{ sub.category.name }}
+                        </span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="text-sm text-muted">{{ sub.last_seen or '—' }}</td>
+                    <td class="text-sm {% if sub.next_expected and sub.next_expected.strftime('%Y-%m-%d') < '2026-03-26' and sub.is_active %}amount-negative{% endif %}">
+                        {{ sub.next_expected or '—' }}
+                    </td>
+                    <td>
+                        <span class="badge" style="--cat-color:{% if not sub.is_active %}#9E9E9E{% else %}#22c55e{% endif %};background:color-mix(in srgb, {% if not sub.is_active %}#9E9E9E{% else %}#22c55e{% endif %} 15%, transparent);color:{% if not sub.is_active %}#9E9E9E{% else %}#22c55e{% endif %}">
+                            {{ 'Active' if sub.is_active else 'Inactive' }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="flex gap-2">
+                            <button class="btn btn-secondary btn-sm"
+                                    onclick="openEditSub({{ sub.id }}, '{{ sub.name|replace("'", "\\'") }}', '{{ sub.merchant or '' }}', '{{ sub.expected_amount or '' }}', '{{ sub.currency }}', '{{ sub.frequency }}', {{ sub.category_id or 'null' }}, {{ 'true' if sub.is_active else 'false' }}, '{{ sub.notes or '' }}')">✏️</button>
+                            <form method="post" action="/subscriptions/{{ sub.id }}/delete" style="display:inline">
+                                <button type="submit" class="btn btn-danger btn-sm"
+                                        onclick="return confirm('Delete this subscription?')">🗑️</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" style="text-align:center;padding:40px" class="text-muted">
+                    No subscriptions yet. Use auto-detect or add manually.
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEditSub(id, name, merchant, amount, currency, freq, catId, isActive, notes) {
+    document.getElementById('edit-sub-form').action = '/subscriptions/' + id + '/edit';
+    document.getElementById('edit-sub-name').value = name;
+    document.getElementById('edit-sub-merchant').value = merchant;
+    document.getElementById('edit-sub-amount').value = amount;
+    document.getElementById('edit-sub-currency').value = currency;
+    document.getElementById('edit-sub-freq').value = freq;
+    if (catId) document.getElementById('edit-sub-cat').value = catId;
+    document.getElementById('edit-sub-active').checked = isActive;
+    document.getElementById('edit-sub-notes').value = notes;
+    openModal('edit-sub-modal');
+}
+</script>
+{% endblock %}

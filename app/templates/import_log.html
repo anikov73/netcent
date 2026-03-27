@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Import Log — Finance Manager{% endblock %}
+{% block page_title %}Import: {{ log.filename }}{% endblock %}
+
+{% block content %}
+<div style="max-width:900px">
+    <a href="/upload" class="btn btn-secondary btn-sm mb-4">← Back</a>
+
+    <div class="grid grid-4 mb-6">
+        <div class="card stat-card">
+            <div class="card-title">Total Rows</div>
+            <div class="stat-value">{{ log.total_rows or 0 }}</div>
+        </div>
+        <div class="card stat-card">
+            <div class="card-title">New</div>
+            <div class="stat-value stat-income">{{ log.new_rows or 0 }}</div>
+        </div>
+        <div class="card stat-card">
+            <div class="card-title">Duplicates</div>
+            <div class="stat-value text-muted">{{ log.duplicate_rows or 0 }}</div>
+        </div>
+        <div class="card stat-card">
+            <div class="card-title">Errors</div>
+            <div class="stat-value stat-expense">{{ log.error_rows or 0 }}</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Imported Transactions</div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th>Date</th><th>Description</th><th>Amount</th><th>Currency</th></tr>
+                </thead>
+                <tbody>
+                    {% for tx in transactions %}
+                    <tr>
+                        <td>{{ tx.date.strftime('%d.%m.%Y') }}</td>
+                        <td class="truncate" style="max-width:300px">{{ tx.description_clean or tx.description }}</td>
+                        <td class="{% if tx.amount > 0 %}amount-positive{% else %}amount-negative{% endif %}">{{ "%.2f"|format(tx.amount|float) }}</td>
+                        <td>{{ tx.currency }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" class="text-muted text-sm" style="text-align:center;padding:20px">No transactions</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

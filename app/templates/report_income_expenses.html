@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Income vs Expenses — Finance Manager{% endblock %}
+{% block page_title %}Income vs Expenses{% endblock %}
+
+{% block content %}
+<div class="card mb-6">
+    <div class="chart-container" style="height:350px">
+        <canvas id="incomeExpChart"></canvas>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">Monthly Summary</div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th>Income</th>
+                    <th>Expenses</th>
+                    <th>Net</th>
+                    <th>Savings Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in monthly %}
+                <tr>
+                    <td>{{ row.label }}</td>
+                    <td class="amount-positive">{{ "%.2f"|format(row.income|float) }}</td>
+                    <td class="amount-negative">{{ "%.2f"|format(row.expenses|float) }}</td>
+                    <td class="{% if row.net|float >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
+                        {{ "%.2f"|format(row.net|float) }}
+                    </td>
+                    <td>
+                        {% if row.income|float > 0 %}
+                        {{ "%.1f"|format(row.net|float / row.income|float * 100) }}%
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+const textColor = () => isDark() ? '#94a3b8' : '#64748b';
+const gridColor = () => isDark() ? '#334155' : '#e2e8f0';
+
+document.addEventListener('DOMContentLoaded', async function() {
+    const data = await fetch('/api/reports/monthly-totals?months=12').then(r => r.json());
+
+    new Chart(document.getElementById('incomeExpChart'), {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [
+                { label: 'Income', data: data.income, backgroundColor: '#22c55e', borderRadius: 4, stack: 'stack' },
+                { label: 'Expenses', data: data.expenses, backgroundColor: '#ef4444', borderRadius: 4, stack: 'stack' },
+                {
+                    label: 'Net', data: data.net, type: 'line',
+                    borderColor: '#3b82f6', backgroundColor: '#3b82f620',
+                    fill: false, tension: 0.3, pointRadius: 4, yAxisID: 'y',
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: textColor() } } },
+            scales: {
+                x: { ticks: { color: textColor() }, grid: { color: gridColor() } },
+                y: { ticks: { color: textColor() }, grid: { color: gridColor() }, beginAtZero: true }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

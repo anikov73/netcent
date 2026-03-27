@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Confirm AI Import — Finance Manager{% endblock %}
+{% block page_title %}Review: {{ filename }}{% endblock %}
+
+{% block content %}
+<div style="max-width:900px">
+
+    <div class="card mb-4" style="padding:16px;background:rgba(34,197,94,0.08);border-color:rgba(34,197,94,0.3)">
+        <div style="font-weight:600;color:var(--success)">✨ AI extracted {{ transactions|length }} transactions</div>
+        <div class="text-muted text-sm" style="margin-top:4px">
+            Review below. Descriptions have been transliterated to Latin.
+            {% if account_name %}Account: <strong>{{ account_name }}</strong>.{% endif %}
+            Click Import to save.
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="table-wrap" style="max-height:500px;overflow-y:auto">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Amount</th>
+                        <th>Currency</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in transactions %}
+                    <tr>
+                        <td class="text-sm text-muted" style="white-space:nowrap">{{ tx.date }}</td>
+                        <td style="font-size:13px">{{ tx.description }}</td>
+                        <td class="{% if tx.amount < 0 %}amount-negative{% else %}amount-positive{% endif %}" style="white-space:nowrap">
+                            {{ "%.2f"|format(tx.amount|float) }}
+                        </td>
+                        <td class="text-sm text-muted">{{ tx.currency }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <form method="post" action="/upload/ai/confirm" class="flex gap-2">
+        <input type="hidden" name="filename" value="{{ filename }}">
+        <input type="hidden" name="parsed_json" value="{{ parsed_json }}">
+        <input type="hidden" name="account_id" value="{{ account_id }}">
+        <button type="submit" class="btn btn-primary">✅ Import {{ transactions|length }} transactions</button>
+        <a href="/upload" class="btn btn-secondary">Cancel</a>
+    </form>
+
+</div>
+{% endblock %}

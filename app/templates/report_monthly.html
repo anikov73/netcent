@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Monthly Report — Finance Manager{% endblock %}
+{% block page_title %}Monthly Report: {{ month_name }}{% endblock %}
+
+{% block content %}
+<!-- Month selector -->
+<form method="get" action="/reports/monthly" class="flex gap-2 mb-6 items-center">
+    <select name="year" class="form-control" style="width:100px">
+        {% for y in range(2020, 2027) %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+    </select>
+    <select name="month" class="form-control" style="width:120px">
+        {% for m in range(1, 13) %}
+        <option value="{{ m }}" {% if m == month %}selected{% endif %}>
+            {{ ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1] }}
+        </option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary">Go</button>
+</form>
+
+<!-- Summary Cards -->
+<div class="grid grid-3 mb-6">
+    <div class="card stat-card">
+        <div class="card-title">Income</div>
+        <div class="stat-value stat-income">{{ "%.2f"|format(summary.income|float) }}</div>
+        <div class="stat-label">MKD</div>
+    </div>
+    <div class="card stat-card">
+        <div class="card-title">Expenses</div>
+        <div class="stat-value stat-expense">{{ "%.2f"|format(summary.expenses|float) }}</div>
+        <div class="stat-label">MKD</div>
+    </div>
+    <div class="card stat-card">
+        <div class="card-title">Net Savings</div>
+        <div class="stat-value {% if summary.net|float >= 0 %}stat-income{% else %}stat-expense{% endif %}">
+            {{ "%.2f"|format(summary.net|float) }}
+        </div>
+        <div class="stat-label">MKD</div>
+    </div>
+</div>
+
+<div class="grid grid-2 mb-6">
+    <div class="card">
+        <div class="card-title">Spending by Category — {{ month_name }}</div>
+        <div class="chart-container">
+            <canvas id="catChart"></canvas>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-title">vs {{ prev_month_name }}</div>
+        <div class="chart-container">
+            <canvas id="compareChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Category breakdown table -->
+<div class="card">
+    <div class="card-title">Category Breakdown</div>
+    {% set total_exp = summary.expenses|float %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>This Month</th>
+                    <th>Last Month</th>
+                    <th>Change</th>
+                    <th>% of Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in by_category %}
+                {% set prev = namespace(val=0) %}
+                {% for p in prev_by_category %}
+                    {% if p.name == item.name %}{% set prev.val = p.total|float %}{% endif %}
+                {% endfor %}
+                {% set change = item.total|float - prev.val %}
+                <tr>
+                    <td>
+                        <span style="font-size:16px">{{ item.icon }}</span>
+                        <span style="margin-left:6px">{{ item.name }}</span>
+                    </td>
+                    <td class="amount-negative">{{ "%.2f"|format(item.total|float) }}</td>
+                    <td class="text-muted">{{ "%.2f"|format(prev.val) }}</td>
+                    <td class="{% if change > 0 %}amount-negative{% else %}amount-positive{% endif %}">
+                        {{ '+' if change > 0 else '' }}{{ "%.2f"|format(change) }}
+                    </td>
+                    <td>
+                        {% if total_exp > 0 %}
+                        <div class="flex items-center gap-2">
+                            <div class="progress" style="width:80px">
+                                <div class="progress-bar" style="width:{{ [100, (item.total|float / total_exp * 100)|int]|min }}%;background:{{ item.color }}"></div>
+                            </div>
+                            {{ "%.1f"|format(item.total|float / total_exp * 100) }}%
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-muted text-sm" style="text-align:center;padding:20px">No data</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+const textColor = () => isDark() ? '#94a3b8' : '#64748b';
+const gridColor = () => isDark() ? '#334155' : '#e2e8f0';
+
+const catData = {{ by_category | tojson }};
+const prevData = {{ prev_by_category | tojson }};
+
+document.addEventListener('DOMContentLoaded', function() {
+    new Chart(document.getElementById('catChart'), {
+        type: 'doughnut',
+        data: {
+            labels: catData.map(d => d.name),
+            datasets: [{
+                data: catData.map(d => d.total),
+                backgroundColor: catData.map(d => d.color),
+                borderWidth: 2,
+                borderColor: isDark() ? '#1e293b' : '#fff',
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'right', labels: { color: textColor(), font: { size: 11 } } } }
+        }
+    });
+
+    // Comparison bar chart
+    const allCats = [...new Set([...catData.map(d => d.name), ...prevData.map(d => d.name)])];
+    const prevMap = Object.fromEntries(prevData.map(d => [d.name, d.total]));
+    const currMap = Object.fromEntries(catData.map(d => [d.name, d.total]));
+
+    new Chart(document.getElementById('compareChart'), {
+        type: 'bar',
+        data: {
+            labels: allCats,
+            datasets: [
+                { label: '{{ month_name }}', data: allCats.map(c => currMap[c] || 0), backgroundColor: '#3b82f6', borderRadius: 4 },
+                { label: '{{ prev_month_name }}', data: allCats.map(c => prevMap[c] || 0), backgroundColor: '#94a3b8', borderRadius: 4 },
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: textColor() } } },
+            scales: {
+                x: { ticks: { color: textColor(), maxRotation: 45 }, grid: { color: gridColor() } },
+                y: { ticks: { color: textColor() }, grid: { color: gridColor() } }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
