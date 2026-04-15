@@ -50,8 +50,11 @@ def clean_description(desc: str) -> str:
     clean = re.sub(r'\s+', ' ', desc.strip())
     # Remove card numbers (sequences of 4+ digits with spaces/dashes)
     clean = re.sub(r'\b\d{4}[\s\-]\d{4}[\s\-]\d{4}[\s\-]?\d{0,4}\b', '', clean)
-    # Remove common reference codes
-    clean = re.sub(r'\b[A-Z0-9]{10,}\b', '', clean)
+    # Remove long pure-digit reference codes (e.g. "4029357733") but keep
+    # uppercase merchant words like "TRADINGVIEW" or "CANVAPTYLIM".
+    clean = re.sub(r'\b\d{8,}\b', '', clean)
+    # Re-collapse whitespace introduced by the substitutions
+    clean = re.sub(r'\s+', ' ', clean)
     return clean.strip()
 
 

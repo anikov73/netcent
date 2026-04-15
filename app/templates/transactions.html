@@ -2,6 +2,37 @@
 {% block title %}Transactions — Finance Manager{% endblock %}
 {% block page_title %}Transactions{% endblock %}
 
+{% macro pagination_block(page, total_pages, page_window, filter_qs) %}
+{% if total_pages > 1 %}
+{% set qs = ('&' ~ filter_qs) if filter_qs else '' %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="?page=1{{ qs }}" class="page-btn" title="First page">« First</a>
+    <a href="?page={{ page-1 }}{{ qs }}" class="page-btn" title="Previous page">‹ Previous</a>
+    {% else %}
+    <span class="page-btn disabled">« First</span>
+    <span class="page-btn disabled">‹ Previous</span>
+    {% endif %}
+
+    {% for p in page_window %}
+        {% if p == page %}
+        <span class="page-btn active" style="font-weight:700">{{ p }}</span>
+        {% else %}
+        <a href="?page={{ p }}{{ qs }}" class="page-btn">{{ p }}</a>
+        {% endif %}
+    {% endfor %}
+
+    {% if page < total_pages %}
+    <a href="?page={{ page+1 }}{{ qs }}" class="page-btn" title="Next page">Next ›</a>
+    <a href="?page={{ total_pages }}{{ qs }}" class="page-btn" title="Last page">Last »</a>
+    {% else %}
+    <span class="page-btn disabled">Next ›</span>
+    <span class="page-btn disabled">Last »</span>
+    {% endif %}
+</div>
+{% endif %}
+{% endmacro %}
+
 {% block topbar_actions %}
 <button id="open-shortcut-modal-btn" class="btn btn-secondary btn-sm" title="Configure keyboard shortcuts">⌨️ Shortcuts</button>
 <a href="/upload" class="btn btn-primary btn-sm">📤 Upload</a>
@@ -44,8 +75,17 @@
 
 <div class="card">
     <div class="flex justify-between items-center mb-4">
-        <span class="text-muted text-sm">{{ total }} transactions</span>
+        <span class="text-muted text-sm">
+            {{ total }} transactions
+            <span id="bulk-selected-label" style="display:none;margin-left:8px">
+                — <strong id="bulk-selected-count">0</strong> selected
+            </span>
+        </span>
         <div class="flex gap-2">
+            <button type="button" id="bulk-delete-btn" class="btn btn-secondary btn-sm"
+                    onclick="bulkDeleteSelected()" style="background:rgba(239,68,68,0.08);color:var(--danger)">
+                🗑️ Delete selected
+            </button>
             <form method="post" action="/rules/recategorize" style="display:inline">
                 <button type="submit" class="btn btn-secondary btn-sm"
                         onclick="return confirm('Re-categorize all uncategorized transactions?')">
@@ -58,10 +98,28 @@
     <!-- Keyboard shortcut hints -->
     <div id="shortcut-hints" style="margin-bottom:10px;min-height:20px"></div>
 
+    <!-- Top pagination + page-size selector -->
+    <div class="flex justify-between items-center mb-4" style="flex-wrap:wrap;gap:12px">
+        {{ pagination_block(page, total_pages, page_window, filter_qs) }}
+        <label class="text-sm text-muted" style="display:flex;align-items:center;gap:6px;margin-left:auto">
+            Show
+            <select class="form-control" style="width:auto" onchange="changePageSize(this.value)">
+                <option value="20"  {% if page_size == '20'  %}selected{% endif %}>20</option>
+                <option value="50"  {% if page_size == '50'  %}selected{% endif %}>50</option>
+                <option value="100" {% if page_size == '100' %}selected{% endif %}>100</option>
+                <option value="all" {% if page_size == 'all' %}selected{% endif %}>All</option>
+            </select>
+            rows
+        </label>
+    </div>
+
     <div class="table-wrap">
         <table>
             <thead>
                 <tr>
+                    <th style="width:32px">
+                        <input type="checkbox" id="bulk-select-all" onclick="toggleAllRowChecks(this)" title="Select all on this page">
+                    </th>
                     <th>
                         <a href="?sort=date&order={% if sort=='date' and order=='desc' %}asc{% else %}desc{% endif %}&q={{ q }}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if account_id %}&account_id={{ account_id }}{% endif %}">
                             Date {% if sort=='date' %}{{ '↓' if order=='desc' else '↑' }}{% endif %}
@@ -91,6 +149,10 @@
                     data-tx-currency="{{ tx.currency }}"
                     data-tx-category-id="{{ tx.category_id or '' }}"
                     style="cursor:default">
+                    <td>
+                        <input type="checkbox" class="bulk-row-check" value="{{ tx.id }}"
+                               onclick="event.stopPropagation(); updateBulkSelection()">
+                    </td>
                     <td class="text-sm text-muted" style="white-space:nowrap">{{ tx.date.strftime('%d.%m.%Y') }}</td>
                     <td class="truncate tx-description" style="max-width:200px" title="{{ tx.description }}">
                         {{ tx.description_clean or tx.description }}
@@ -120,6 +182,7 @@
                     class="inline-edit-row"
                     data-edit-tx-id="{{ tx.id }}"
                     style="display:none">
+                    <td></td>
                     <td></td>
                     <td colspan="2">
                         <input type="text" name="description_clean"
@@ -156,7 +219,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="8" style="text-align:center;padding:40px" class="text-muted">
+                    <td colspan="10" style="text-align:center;padding:40px" class="text-muted">
                         No transactions found. <a href="/upload">Upload a file to get started.</a>
                     </td>
                 </tr>
@@ -165,26 +228,9 @@
         </table>
     </div>
 
-    <!-- Pagination -->
+    <!-- Bottom pagination -->
+    {{ pagination_block(page, total_pages, page_window, filter_qs) }}
     {% if total_pages > 1 %}
-    <div class="pagination">
-        {% if page > 1 %}
-        <a href="?page={{ page-1 }}&q={{ q }}&sort={{ sort }}&order={{ order }}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if account_id %}&account_id={{ account_id }}{% endif %}" class="page-btn">←</a>
-        {% else %}
-        <span class="page-btn disabled">←</span>
-        {% endif %}
-
-        {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
-        <a href="?page={{ p }}&q={{ q }}&sort={{ sort }}&order={{ order }}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if account_id %}&account_id={{ account_id }}{% endif %}"
-           class="page-btn {% if p == page %}active{% endif %}">{{ p }}</a>
-        {% endfor %}
-
-        {% if page < total_pages %}
-        <a href="?page={{ page+1 }}&q={{ q }}&sort={{ sort }}&order={{ order }}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if account_id %}&account_id={{ account_id }}{% endif %}" class="page-btn">→</a>
-        {% else %}
-        <span class="page-btn disabled">→</span>
-        {% endif %}
-    </div>
     <div class="text-center text-muted text-sm mt-4">Page {{ page }} of {{ total_pages }}</div>
     {% endif %}
 </div>
@@ -216,4 +262,64 @@
 
 {% block scripts %}
 <script src="/static/js/transactions.js"></script>
+<script>
+function changePageSize(value) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', '1');
+    url.searchParams.set('page_size', value);
+    window.location.href = url.toString();
+}
+
+function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.bulk-row-check:checked')).map(cb => cb.value);
+}
+
+function updateBulkSelection() {
+    const ids = getSelectedIds();
+    const label = document.getElementById('bulk-selected-label');
+    const count = document.getElementById('bulk-selected-count');
+    if (label && count) {
+        if (ids.length > 0) {
+            label.style.display = 'inline';
+            count.textContent = ids.length;
+        } else {
+            label.style.display = 'none';
+        }
+    }
+    // Sync the master checkbox state
+    const all = document.querySelectorAll('.bulk-row-check');
+    const master = document.getElementById('bulk-select-all');
+    if (master) {
+        master.checked = all.length > 0 && ids.length === all.length;
+        master.indeterminate = ids.length > 0 && ids.length < all.length;
+    }
+}
+
+function toggleAllRowChecks(master) {
+    document.querySelectorAll('.bulk-row-check').forEach(cb => { cb.checked = master.checked; });
+    updateBulkSelection();
+}
+
+function bulkDeleteSelected() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        alert('Select at least one transaction first (use the checkboxes on the left).');
+        return;
+    }
+    if (!confirm('Are you sure you want to delete the ' + ids.length + ' transactions?')) return;
+    if (!confirm('Are you really, really sure?')) return;
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = '/transactions/bulk-delete';
+    ids.forEach(id => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'ids';
+        input.value = id;
+        form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
 {% endblock %}

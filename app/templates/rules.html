@@ -131,6 +131,20 @@
             ⚙️ Re-categorize All
         </button>
     </form>
+    <form method="post" action="/rules/clear-auto-categories"
+          onsubmit="return confirm('Clear the category on transactions that were auto-assigned? Manual categorizations are preserved.')">
+        <button type="submit" class="btn btn-secondary btn-sm"
+                style="background:rgba(245,158,11,0.08);color:var(--warning,#d97706)">
+            🧽 Clear auto-assigned
+        </button>
+    </form>
+    <form method="post" action="/rules/clear-categories"
+          onsubmit="return confirm('Clear the category on EVERY transaction? Manual categorizations will also be lost. This cannot be undone.')">
+        <button type="submit" class="btn btn-secondary btn-sm"
+                style="background:rgba(239,68,68,0.08);color:var(--danger)">
+            🧹 Clear all categories
+        </button>
+    </form>
 </div>
 
 <div class="card">

@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.categorization_rule import CategorizationRule
 from app.models.category import Category
+from app.models.transaction import Transaction
 from app.services.categorization import test_rule, auto_categorize_transactions
 
 router = APIRouter()
@@ -142,4 +143,41 @@ async def bulk_recategorize(db: AsyncSession = Depends(get_db)):
     count = await auto_categorize_transactions(db)
     return RedirectResponse(
         f"/rules?msg={count}+transactions+recategorized&type=success", status_code=303
+    )
+
+
+@router.post("/rules/clear-categories")
+async def clear_all_categories(db: AsyncSession = Depends(get_db)):
+    """Unset the category on every transaction (also drops the manual flag so
+    a subsequent re-categorize pass can reassign automatically)."""
+    result = await db.execute(
+        update(Transaction)
+        .where(Transaction.category_id.is_not(None))
+        .values(category_id=None, is_manually_categorized=False)
+    )
+    await db.commit()
+    cleared = result.rowcount or 0
+    return RedirectResponse(
+        f"/rules?msg=Cleared+categories+on+{cleared}+transactions&type=success",
+        status_code=303,
+    )
+
+
+@router.post("/rules/clear-auto-categories")
+async def clear_auto_categories(db: AsyncSession = Depends(get_db)):
+    """Unset the category only on rows that were auto-assigned. Manual
+    categorizations are preserved."""
+    result = await db.execute(
+        update(Transaction)
+        .where(
+            Transaction.category_id.is_not(None),
+            Transaction.is_manually_categorized == False,
+        )
+        .values(category_id=None)
+    )
+    await db.commit()
+    cleared = result.rowcount or 0
+    return RedirectResponse(
+        f"/rules?msg=Cleared+auto-assigned+categories+on+{cleared}+transactions&type=success",
+        status_code=303,
     )

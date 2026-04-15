@@ -7,14 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction
 from app.config import settings
+from app.services.reporting import _excluded_category_ids
 
 
 async def detect_anomalies(db: AsyncSession) -> list[dict]:
     anomalies = []
 
-    result = await db.execute(
-        select(Transaction).order_by(Transaction.date.desc()).limit(500)
-    )
+    excluded = set(await _excluded_category_ids(db))
+    q = select(Transaction).order_by(Transaction.date.desc()).limit(500)
+    if excluded:
+        q = q.where(Transaction.category_id.notin_(excluded) | Transaction.category_id.is_(None))
+    result = await db.execute(q)
     transactions = result.scalars().all()
 
     # Compute per-merchant stats

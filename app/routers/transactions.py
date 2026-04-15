@@ -1,7 +1,9 @@
+from urllib.parse import urlencode
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, or_, func
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -22,8 +24,8 @@ async def transactions_list(
     db: AsyncSession = Depends(get_db),
     page: int = 1,
     q: str = "",
-    category_id: int | None = None,
-    account_id: int | None = None,
+    category_id: str = "",
+    account_id: str = "",
     date_from: str = "",
     date_to: str = "",
     amount_min: str = "",
@@ -34,6 +36,7 @@ async def transactions_list(
     expense_only: bool = False,
     sort: str = "date",
     order: str = "desc",
+    page_size: str = "50",
 ):
     query = select(Transaction).options(
         selectinload(Transaction.category),
@@ -51,10 +54,19 @@ async def transactions_list(
                 Transaction.notes.ilike(search),
             )
         )
-    if category_id:
-        query = query.where(Transaction.category_id == category_id)
-    if account_id:
-        query = query.where(Transaction.account_id == account_id)
+    try:
+        category_id_int = int(category_id) if category_id else None
+    except ValueError:
+        category_id_int = None
+    try:
+        account_id_int = int(account_id) if account_id else None
+    except ValueError:
+        account_id_int = None
+
+    if category_id_int:
+        query = query.where(Transaction.category_id == category_id_int)
+    if account_id_int:
+        query = query.where(Transaction.account_id == account_id_int)
     if date_from:
         from datetime import date
         try:
@@ -102,11 +114,22 @@ async def transactions_list(
     else:
         query = query.order_by(sort_col.desc())
 
-    # Pagination
-    offset = (page - 1) * PAGE_SIZE
-    query = query.offset(offset).limit(PAGE_SIZE)
+    # Page size: "20" / "50" / "100" / "all"
+    if page_size == "all":
+        ps_int: int | None = None
+    else:
+        try:
+            ps_int = int(page_size)
+        except ValueError:
+            ps_int = PAGE_SIZE
+        if ps_int not in (20, 50, 100):
+            ps_int = PAGE_SIZE
 
-    result = await db.execute(query)
+    if ps_int is None:
+        result = await db.execute(query)
+    else:
+        offset = (page - 1) * ps_int
+        result = await db.execute(query.offset(offset).limit(ps_int))
     transactions = result.scalars().all()
 
     # Categories for filter
@@ -117,7 +140,43 @@ async def transactions_list(
     accs_result = await db.execute(select(Account).where(Account.is_active == True).order_by(Account.name))
     accounts = accs_result.scalars().all()
 
-    total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+    if ps_int is None:
+        total_pages = 1
+        page = 1
+    else:
+        total_pages = max(1, (total + ps_int - 1) // ps_int)
+        page = min(max(1, page), total_pages)
+
+    # Window of page numbers: current ± 5, clamped to [1, total_pages].
+    window_start = max(1, page - 5)
+    window_end = min(total_pages, page + 5)
+    page_window = list(range(window_start, window_end + 1))
+
+    # Build a querystring that preserves every active filter/sort param so
+    # pagination links don't reset the user's filters.
+    filter_params: list[tuple[str, str]] = [("page_size", page_size)]
+    for key, value in (
+        ("q", q),
+        ("category_id", category_id),
+        ("account_id", account_id),
+        ("date_from", date_from),
+        ("date_to", date_to),
+        ("amount_min", amount_min),
+        ("amount_max", amount_max),
+        ("currency", currency),
+        ("sort", sort),
+        ("order", order),
+    ):
+        if value:
+            filter_params.append((key, str(value)))
+    for key, flag in (
+        ("uncategorized", uncategorized),
+        ("income_only", income_only),
+        ("expense_only", expense_only),
+    ):
+        if flag:
+            filter_params.append((key, "1"))
+    filter_qs = urlencode(filter_params)
 
     msg = request.query_params.get("msg", "")
     msg_type = request.query_params.get("type", "info")
@@ -144,8 +203,30 @@ async def transactions_list(
         "expense_only": expense_only,
         "sort": sort,
         "order": order,
+        "page_size": page_size,
+        "page_window": page_window,
+        "filter_qs": filter_qs,
         "flash_messages": [{"message": msg, "type": msg_type}] if msg else [],
     })
+
+
+@router.post("/transactions/bulk-delete")
+async def bulk_delete_transactions(
+    ids: list[int] = Form(default=[]),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete every transaction whose id is in `ids`. Posted from the
+    transactions page after the user double-confirms in the UI."""
+    if not ids:
+        return RedirectResponse(
+            "/transactions?msg=No+transactions+selected&type=error", status_code=303
+        )
+    result = await db.execute(delete(Transaction).where(Transaction.id.in_(ids)))
+    await db.commit()
+    deleted = result.rowcount or 0
+    return RedirectResponse(
+        f"/transactions?msg=Deleted+{deleted}+transactions&type=success", status_code=303
+    )
 
 
 @router.post("/transactions/{tx_id}/edit")
