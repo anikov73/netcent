@@ -2,7 +2,7 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      - "8002:8000"
     environment:
       - DATABASE_URL=postgresql+asyncpg://finapp:finapp@db:5432/finapp
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}

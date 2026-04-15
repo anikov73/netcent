@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Fast Import — Finance Manager{% endblock %}
+{% block page_title %}Fast Import (no AI){% endblock %}
+
+{% block content %}
+{% for msg in flash_messages %}
+{% if msg.message %}
+<div class="alert alert-{{ 'success' if msg.type == 'success' else 'danger' if msg.type == 'error' else 'info' }}">
+    {{ msg.message }}
+</div>
+{% endif %}
+{% endfor %}
+
+<div style="max-width:640px">
+    <div class="card mb-6">
+        <h3 style="margin-bottom:4px">⚡ Fast Import</h3>
+        <p class="text-muted text-sm mb-4">
+            Detects known bank-export formats locally — no AI calls, no network
+            round-trip. Upload a file; we'll tell you which format it matches
+            before any data is extracted.
+        </p>
+
+        <div class="form-group" style="margin-bottom:20px">
+            <label class="form-label">🏦 Account</label>
+            <div style="display:flex;gap:8px;align-items:center">
+                <select id="shared-account-id" class="form-control" style="flex:1">
+                    <option value="">— No account —</option>
+                    {% for acc in accounts %}
+                    <option value="{{ acc.id }}">{{ acc.name }}{% if acc.currency %} ({{ acc.currency }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <a href="/accounts" class="btn btn-secondary btn-sm" title="Manage accounts">⚙️</a>
+            </div>
+        </div>
+
+        <form method="post" action="/upload/fast/detect" enctype="multipart/form-data" id="fast-form">
+            <input type="hidden" name="account_id" id="fast-account-id">
+            <div class="upload-area" id="fast-upload-area">
+                <div style="font-size:40px;margin-bottom:8px">⚡</div>
+                <p style="font-size:15px;font-weight:500">Drop file here or click to upload</p>
+                <p class="text-muted text-sm" style="margin-top:8px">.xls / .xlsx — known formats only</p>
+                <input type="file" name="file" id="fast-file-input" accept=".xlsx,.xls"
+                       style="display:none" onchange="submitFastForm()">
+            </div>
+        </form>
+
+        <hr style="margin:20px 0;border-color:var(--border)">
+        <p class="text-muted text-sm">Supported formats:</p>
+        <ul class="text-muted text-sm" style="margin-top:4px;padding-left:20px">
+            {% for spec in parsers %}
+            <li><strong>{{ spec.label }}</strong> — {{ spec.description }}</li>
+            {% endfor %}
+        </ul>
+        <p class="text-muted text-sm" style="margin-top:12px">
+            Need a different format? Use <a href="/upload">Smart Import (AI)</a> instead.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    initUploadArea('fast-upload-area', 'fast-file-input');
+});
+
+function submitFastForm() {
+    var acc = document.getElementById('shared-account-id').value;
+    if (!acc) {
+        alert('Please select an account before uploading.');
+        document.getElementById('fast-file-input').value = '';
+        document.getElementById('shared-account-id').focus();
+        return;
+    }
+    document.getElementById('fast-account-id').value = acc;
+    document.getElementById('fast-form').submit();
+}
+</script>
+{% endblock %}

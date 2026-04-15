@@ -23,7 +23,8 @@ class Transaction(Base):
     is_manually_categorized: Mapped[bool] = mapped_column(Boolean, default=False)
     notes: Mapped[str | None] = mapped_column(Text)
     merchant: Mapped[str | None] = mapped_column(String(255))
-    import_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    # 64 hex chars for the natural hash + optional "|N" suffix for in-batch duplicates
+    import_hash: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     import_log_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("import_logs.id"))
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())

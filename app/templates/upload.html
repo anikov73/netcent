@@ -31,49 +31,83 @@
             {% endif %}
         </div>
 
-        {% if has_openai %}
-        <!-- AI Import -->
-        <h3 style="margin-bottom:4px">✨ Smart Import</h3>
-        <p class="text-muted text-sm mb-4">AI reads any bank statement format and extracts all transactions automatically. Supports any language including Macedonian/Cyrillic.</p>
+        <!-- Primary: Fast Import (no AI, default) -->
+        <h3 style="margin-bottom:4px">⚡ Fast Import</h3>
+        <p class="text-muted text-sm mb-4">
+            Detects known bank-export formats locally — instant, private, no API calls.
+        </p>
 
-        <form method="post" action="/upload/ai" enctype="multipart/form-data" id="ai-form">
-            <input type="hidden" name="account_id" id="ai-account-id">
-            <div class="upload-area" id="ai-upload-area">
-                <div style="font-size:40px;margin-bottom:8px">🤖</div>
+        <form method="post" action="/upload/fast/detect" enctype="multipart/form-data" id="fast-form">
+            <input type="hidden" name="account_id" id="fast-account-id">
+            <div class="upload-area" id="fast-upload-area">
+                <div style="font-size:40px;margin-bottom:8px">⚡</div>
                 <p style="font-size:15px;font-weight:500">Drop file here or click to upload</p>
-                <p class="text-muted text-sm" style="margin-top:8px">.xlsx / .xls / .csv — any format</p>
-                <input type="file" name="file" id="ai-file-input" accept=".xlsx,.xls,.csv"
-                       style="display:none" onchange="submitAiForm()">
+                <p class="text-muted text-sm" style="margin-top:8px">.xls / .xlsx — known formats only</p>
+                <input type="file" name="file" id="fast-file-input" accept=".xlsx,.xls"
+                       style="display:none" onchange="submitFastForm()">
             </div>
         </form>
 
-        <div id="ai-loading" style="display:none;text-align:center;padding:24px">
-            <div style="font-size:32px;margin-bottom:8px;animation:spin 1.5s linear infinite;display:inline-block">⏳</div>
-            <p style="font-weight:500;margin-bottom:4px">AI is reading your bank statement…</p>
-            <p class="text-muted text-sm">Extracting and translating transactions. This takes 5–20 seconds.</p>
-        </div>
+        {% if parsers %}
+        <p class="text-muted text-sm" style="margin-top:12px">
+            Supported:
+            {% for spec in parsers %}<strong>{{ spec.label }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}.
+        </p>
+        {% endif %}
 
         <hr style="margin:20px 0;border-color:var(--border)">
+
         <details>
-            <summary class="text-muted text-sm" style="cursor:pointer">Manual column mapping (advanced)</summary>
-            <div style="margin-top:12px">
-        {% endif %}
+            <summary class="text-muted text-sm" style="cursor:pointer">Other import options</summary>
+            <div style="margin-top:16px">
 
-        <form method="post" action="/upload/preview" enctype="multipart/form-data" id="manual-form">
-            <input type="hidden" name="account_id" id="manual-account-id">
-            <div class="upload-area" id="upload-area">
-                <div style="font-size:40px;margin-bottom:8px">📂</div>
-                <p style="font-size:15px;font-weight:500">Select file to map columns manually</p>
-                <p class="text-muted text-sm" style="margin-top:8px">.xlsx / .xls / .csv</p>
-                <input type="file" name="file" id="file-input" accept=".xlsx,.xls,.csv"
-                       style="display:none" onchange="submitManualForm()">
-            </div>
-        </form>
+                {% if has_openai %}
+                <!-- Smart Import (AI) -->
+                <div style="margin-bottom:20px">
+                    <div style="font-weight:600;margin-bottom:4px">✨ Smart Import (AI)</div>
+                    <p class="text-muted text-sm mb-4">
+                        AI reads any bank statement format and extracts transactions.
+                        Slower, and sends file contents to an external API.
+                    </p>
 
-        {% if has_openai %}
+                    <form method="post" action="/upload/ai" enctype="multipart/form-data" id="ai-form">
+                        <input type="hidden" name="account_id" id="ai-account-id">
+                        <div class="upload-area" id="ai-upload-area">
+                            <div style="font-size:32px;margin-bottom:8px">🤖</div>
+                            <p style="font-size:14px;font-weight:500">Drop file here or click to upload</p>
+                            <p class="text-muted text-sm" style="margin-top:6px">.xlsx / .xls / .csv — any format</p>
+                            <input type="file" name="file" id="ai-file-input" accept=".xlsx,.xls,.csv"
+                                   style="display:none" onchange="submitAiForm()">
+                        </div>
+                    </form>
+
+                    <div id="ai-loading" style="display:none;text-align:center;padding:24px">
+                        <div style="font-size:32px;margin-bottom:8px;animation:spin 1.5s linear infinite;display:inline-block">⏳</div>
+                        <p style="font-weight:500;margin-bottom:4px">AI is reading your bank statement…</p>
+                        <p class="text-muted text-sm">Extracting and translating transactions. This takes 5–20 seconds.</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Manual column mapping -->
+                <div>
+                    <div style="font-weight:600;margin-bottom:4px">📂 Manual column mapping</div>
+                    <p class="text-muted text-sm mb-4">Advanced: pick your own column mapping for unrecognised files.</p>
+
+                    <form method="post" action="/upload/preview" enctype="multipart/form-data" id="manual-form">
+                        <input type="hidden" name="account_id" id="manual-account-id">
+                        <div class="upload-area" id="upload-area">
+                            <div style="font-size:32px;margin-bottom:8px">📂</div>
+                            <p style="font-size:14px;font-weight:500">Select file to map columns manually</p>
+                            <p class="text-muted text-sm" style="margin-top:6px">.xlsx / .xls / .csv</p>
+                            <input type="file" name="file" id="file-input" accept=".xlsx,.xls,.csv"
+                                   style="display:none" onchange="submitManualForm()">
+                        </div>
+                    </form>
+                </div>
+
             </div>
         </details>
-        {% endif %}
 
     </div>
 
@@ -127,21 +161,45 @@
 </style>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    initUploadArea('fast-upload-area', 'fast-file-input');
     initUploadArea('upload-area', 'file-input');
     {% if has_openai %}
     initUploadArea('ai-upload-area', 'ai-file-input');
     {% endif %}
 });
 
+function requireAccount(fileInputId) {
+    var acc = document.getElementById('shared-account-id').value;
+    if (!acc) {
+        alert('Please select an account before uploading.');
+        var input = document.getElementById(fileInputId);
+        if (input) input.value = '';
+        document.getElementById('shared-account-id').focus();
+        return false;
+    }
+    return acc;
+}
+
+function submitFastForm() {
+    var acc = requireAccount('fast-file-input');
+    if (!acc) return;
+    document.getElementById('fast-account-id').value = acc;
+    document.getElementById('fast-form').submit();
+}
+
 function submitAiForm() {
-    document.getElementById('ai-account-id').value = document.getElementById('shared-account-id').value;
+    var acc = requireAccount('ai-file-input');
+    if (!acc) return;
+    document.getElementById('ai-account-id').value = acc;
     document.getElementById('ai-upload-area').style.display = 'none';
     document.getElementById('ai-loading').style.display = 'block';
     document.getElementById('ai-form').submit();
 }
 
 function submitManualForm() {
-    document.getElementById('manual-account-id').value = document.getElementById('shared-account-id').value;
+    var acc = requireAccount('file-input');
+    if (!acc) return;
+    document.getElementById('manual-account-id').value = acc;
     document.getElementById('manual-form').submit();
 }
 </script>

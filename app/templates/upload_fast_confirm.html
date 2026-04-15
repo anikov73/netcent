@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Confirm Format — Finance Manager{% endblock %}
+{% block page_title %}Detected format: {{ filename }}{% endblock %}
+
+{% block content %}
+<div style="max-width:640px">
+
+    {% if spec %}
+    <div class="card mb-4" style="padding:16px;background:rgba(34,197,94,0.08);border-color:rgba(34,197,94,0.3)">
+        <div style="font-weight:600;color:var(--success)">✅ Matched: {{ spec.label }}</div>
+        <div class="text-muted text-sm" style="margin-top:4px">{{ spec.description }}</div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-title">File details</div>
+        <dl style="display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:0">
+            <dt class="text-muted text-sm">Filename</dt>
+            <dd style="margin:0">{{ filename }}</dd>
+            <dt class="text-muted text-sm">Size</dt>
+            <dd style="margin:0">{{ size_kb }} KB</dd>
+            <dt class="text-muted text-sm">Parser</dt>
+            <dd style="margin:0"><code>{{ spec.key }}</code></dd>
+            {% if account_name %}
+            <dt class="text-muted text-sm">Account</dt>
+            <dd style="margin:0">{{ account_name }}</dd>
+            {% endif %}
+        </dl>
+    </div>
+
+    <form method="post" action="/upload/fast/parse" class="flex gap-2">
+        <input type="hidden" name="filename" value="{{ filename }}">
+        <input type="hidden" name="file_hex" value="{{ file_hex }}">
+        <input type="hidden" name="parser_key" value="{{ spec.key }}">
+        <input type="hidden" name="account_id" value="{{ account_id }}">
+        <button type="submit" class="btn btn-primary">⚡ Parse & review</button>
+        <a href="/upload/fast" class="btn btn-secondary">Cancel</a>
+    </form>
+    {% else %}
+    <div class="card mb-4" style="padding:16px;background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.3)">
+        <div style="font-weight:600;color:var(--danger)">❌ Unknown format</div>
+        <div class="text-muted text-sm" style="margin-top:4px">
+            No deterministic parser recognised <strong>{{ filename }}</strong>.
+            Try <a href="/upload">Smart Import (AI)</a> or the manual column mapper.
+        </div>
+    </div>
+    <a href="/upload/fast" class="btn btn-secondary">Back</a>
+    {% endif %}
+
+</div>
+{% endblock %}

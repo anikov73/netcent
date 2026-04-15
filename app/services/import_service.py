@@ -19,6 +19,30 @@ def compute_hash(date_val: str, description: str, amount: str, currency: str) ->
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+async def _load_existing_naturals(db, naturals: set[str]) -> set[str]:
+    """Return the subset of `naturals` that already appear in the DB.
+
+    In-batch duplicate rows share the same natural hash but are stored with a
+    `|N` suffix, so we compare the 64-char prefix of every stored hash.
+    """
+    if not naturals:
+        return set()
+    from sqlalchemy import func, select
+    result = await db.execute(
+        select(Transaction.import_hash).where(
+            func.substring(Transaction.import_hash, 1, 64).in_(naturals)
+        )
+    )
+    return {h[:64] for (h,) in result.all()}
+
+
+def _next_unique_hash(natural: str, occurrence: dict[str, int]) -> str:
+    """Disambiguate within-batch duplicates so each row gets a unique DB hash."""
+    n = occurrence.get(natural, 0)
+    occurrence[natural] = n + 1
+    return natural if n == 0 else f"{natural}|{n}"
+
+
 def clean_description(desc: str) -> str:
     if not desc:
         return desc
@@ -158,8 +182,6 @@ async def import_transactions(
     df: "pd.DataFrame | None" = None,
     account_id: int | None = None,
 ) -> dict:
-    from sqlalchemy import select
-
     if df is None:
         df = read_file(content, filename)
     df = df.fillna('')
@@ -174,6 +196,9 @@ async def import_transactions(
     db.add(log)
     await db.flush()
 
+    # First pass — extract and validate every row so we can snapshot existing
+    # DB hashes before inserting anything.
+    prepared: list[tuple[object, object, str, Decimal, str, str]] = []
     for _, row in df.iterrows():
         try:
             date_col = column_mapping.get('date')
@@ -221,17 +246,24 @@ async def import_transactions(
                 currency = detected_currency
 
             value_date = parse_date(row.get(value_date_col, '')) if value_date_col else None
+            natural = compute_hash(str(raw_date), raw_desc, str(amount), currency)
+            prepared.append((raw_date, value_date, raw_desc, amount, currency, natural))
+        except Exception:
+            err_count += 1
+            continue
 
-            import_hash = compute_hash(str(raw_date), raw_desc, str(amount), currency)
+    existing_naturals = await _load_existing_naturals(
+        db, {p[5] for p in prepared}
+    )
+    occurrence: dict[str, int] = {}
 
-            # Check duplicate
-            result = await db.execute(
-                select(Transaction).where(Transaction.import_hash == import_hash)
-            )
-            if result.scalar_one_or_none():
+    for raw_date, value_date, raw_desc, amount, currency, natural in prepared:
+        try:
+            if natural in existing_naturals:
                 dup_count += 1
                 continue
 
+            import_hash = _next_unique_hash(natural, occurrence)
             desc_clean = clean_description(raw_desc)
             merchant = extract_merchant(desc_clean)
 
@@ -252,7 +284,7 @@ async def import_transactions(
             imported_ids.append(tx.id)
             new_count += 1
 
-        except Exception as e:
+        except Exception:
             err_count += 1
             continue
 
@@ -286,8 +318,6 @@ async def import_from_parsed(
     account_id: int | None = None,
 ) -> dict:
     """Import pre-parsed transaction dicts from LLM extraction."""
-    from sqlalchemy import select
-
     logger.info("import_from_parsed: filename=%s  input_count=%d", filename, len(parsed))
 
     new_count = 0
@@ -300,6 +330,9 @@ async def import_from_parsed(
     await db.flush()
     logger.debug("  Created ImportLog id=%d", log.id)
 
+    # First pass — validate rows and compute natural hashes up front, so we can
+    # snapshot the DB's existing hashes in a single query before touching it.
+    prepared: list[tuple[int, dict, object, str, Decimal, str, str]] = []
     for i, item in enumerate(parsed):
         try:
             raw_date = parse_date(item.get("date", ""))
@@ -323,20 +356,29 @@ async def import_from_parsed(
                 continue
 
             currency = str(item.get("currency", "MKD")).strip() or "MKD"
-            import_hash = compute_hash(str(raw_date), raw_desc, str(amount), currency)
+            natural = compute_hash(str(raw_date), raw_desc, str(amount), currency)
+            prepared.append((i, item, raw_date, raw_desc, amount, currency, natural))
+        except Exception:
+            logger.exception("  [%d] ERROR preparing item: %s", i, item)
+            err_count += 1
+            continue
 
-            result = await db.execute(
-                select(Transaction).where(Transaction.import_hash == import_hash)
-            )
-            if result.scalar_one_or_none():
+    existing_naturals = await _load_existing_naturals(
+        db, {p[6] for p in prepared}
+    )
+    occurrence: dict[str, int] = {}
+
+    for i, item, raw_date, raw_desc, amount, currency, natural in prepared:
+        try:
+            if natural in existing_naturals:
                 logger.debug("  [%d] DUPE — %s %s %.2f %s", i, raw_date, raw_desc[:40], amount, currency)
                 dup_count += 1
                 continue
 
+            import_hash = _next_unique_hash(natural, occurrence)
             desc_clean = clean_description(raw_desc)
             merchant = extract_merchant(desc_clean)
 
-            # Per-item account_id overrides the function-level default
             tx_account_id = item.get("account_id", account_id)
 
             tx = Transaction(
@@ -357,7 +399,7 @@ async def import_from_parsed(
             logger.debug("  [%d] NEW  — %s %s %.2f %s", i, raw_date, raw_desc[:40], amount, currency)
 
         except Exception:
-            logger.exception("  [%d] ERROR processing item: %s", i, item)
+            logger.exception("  [%d] ERROR inserting item: %s", i, item)
             err_count += 1
             continue
 

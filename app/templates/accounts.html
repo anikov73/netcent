@@ -40,6 +40,14 @@
                                 onclick="openEditModal({{ acc.id }}, {{ acc.name|tojson }}, {{ (acc.description or '')|tojson }}, {{ acc.currency|tojson }}, {{ acc.is_active|tojson }})">
                             Edit
                         </button>
+                        {% set count = tx_counts.get(acc.id, 0) %}
+                        <form method="post" action="/accounts/{{ acc.id }}/clear-transactions" style="display:inline"
+                              onsubmit="return confirm('Delete all {{ count }} transactions for {{ acc.name }}? This cannot be undone.')">
+                            <button type="submit" class="btn btn-secondary btn-sm"
+                                    {% if count == 0 %}disabled title="No transactions"{% else %}title="Delete all transactions for this account"{% endif %}>
+                                Clear txns
+                            </button>
+                        </form>
                         <form method="post" action="/accounts/{{ acc.id }}/delete" style="display:inline"
                               onsubmit="return confirm('Delete account {{ acc.name }}? Transactions will not be deleted.')">
                             <button type="submit" class="btn btn-secondary btn-sm">Delete</button>
@@ -53,6 +61,23 @@
     {% else %}
     <p class="text-muted text-sm">No accounts yet. Create one to start assigning transactions.</p>
     {% endif %}
+</div>
+
+<div class="card" style="margin-top:16px">
+    <div class="card-title">Unassigned transactions</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px">
+        <div class="text-sm text-muted">
+            Transactions not linked to any account:
+            <strong>{{ unassigned_count }}</strong>
+        </div>
+        <form method="post" action="/accounts/clear-unassigned"
+              onsubmit="return confirm('Delete all {{ unassigned_count }} transactions with no account assigned? This cannot be undone.')">
+            <button type="submit" class="btn btn-secondary btn-sm"
+                    {% if unassigned_count == 0 %}disabled title="Nothing to clear"{% endif %}>
+                Clear unassigned
+            </button>
+        </form>
+    </div>
 </div>
 
 <!-- Create modal -->

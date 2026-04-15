@@ -6,13 +6,43 @@
 <div style="max-width:900px">
 
     <div class="card mb-4" style="padding:16px;background:rgba(34,197,94,0.08);border-color:rgba(34,197,94,0.3)">
-        <div style="font-weight:600;color:var(--success)">✨ AI extracted {{ transactions|length }} transactions</div>
+        <div style="font-weight:600;color:var(--success)">{{ source_icon or '✨' }} {{ source_label or 'AI extracted' }} {{ transactions|length }} transactions</div>
         <div class="text-muted text-sm" style="margin-top:4px">
-            Review below. Descriptions have been transliterated to Latin.
+            {{ source_subtitle or 'Review below. Descriptions have been transliterated to Latin.' }}
             {% if account_name %}Account: <strong>{{ account_name }}</strong>.{% endif %}
             Click Import to save.
         </div>
     </div>
+
+    {% if totals %}
+    <div class="card mb-4">
+        <div class="card-title">Summary</div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Currency</th>
+                        <th style="text-align:right">Total in</th>
+                        <th style="text-align:right">Total out</th>
+                        <th style="text-align:right">Net</th>
+                        <th style="text-align:right">Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in totals %}
+                    <tr>
+                        <td><strong>{{ t.currency }}</strong></td>
+                        <td class="amount-positive" style="text-align:right;white-space:nowrap">+{{ "{:,.2f}".format(t.total_in) }}</td>
+                        <td class="amount-negative" style="text-align:right;white-space:nowrap">−{{ "{:,.2f}".format(t.total_out) }}</td>
+                        <td class="{% if t.net < 0 %}amount-negative{% else %}amount-positive{% endif %}" style="text-align:right;white-space:nowrap">{{ "{:,.2f}".format(t.net) }}</td>
+                        <td class="text-muted" style="text-align:right">{{ t.count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="card mb-4">
         <div class="table-wrap" style="max-height:500px;overflow-y:auto">
@@ -30,7 +60,7 @@
                     <tr>
                         <td class="text-sm text-muted" style="white-space:nowrap">{{ tx.date }}</td>
                         <td style="font-size:13px">{{ tx.description }}</td>
-                        <td class="{% if tx.amount < 0 %}amount-negative{% else %}amount-positive{% endif %}" style="white-space:nowrap">
+                        <td class="{% if tx.amount|float < 0 %}amount-negative{% else %}amount-positive{% endif %}" style="white-space:nowrap">
                             {{ "%.2f"|format(tx.amount|float) }}
                         </td>
                         <td class="text-sm text-muted">{{ tx.currency }}</td>
