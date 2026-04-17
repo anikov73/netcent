@@ -61,13 +61,11 @@ def clean_description(desc: str) -> str:
 def extract_merchant(description: str) -> str | None:
     if not description:
         return None
-    # Take first meaningful part before common separators
-    parts = re.split(r'[,\|/\\]', description)
-    merchant = parts[0].strip()
-    # Capitalize properly
-    if len(merchant) > 2:
-        return merchant[:60]
-    return None
+    merchant = description.strip()
+    if len(merchant) <= 2:
+        return None
+    # The DB column is VARCHAR(255); cap to stay safely under that.
+    return merchant[:255]
 
 
 def parse_date(val: Any) -> date | None:
